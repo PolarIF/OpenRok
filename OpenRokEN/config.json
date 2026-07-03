@@ -1,9 +1,0 @@
-{
-    "capture_area": {
-        "x_start": 0.1,
-        "x_end": 0.2,
-        "y_start": 0.1,
-        "y_end": 0.15
-    },
-    "tesseract_path": "C:/Program Files/Tesseract-OCR/tesseract.exe"
-}

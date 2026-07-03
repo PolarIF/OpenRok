@@ -1,0 +1,14 @@
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Cache e artefatos do Python
+__pycache__/
+*.pyc
+*.pyo
+*.lprof
+
+# Builds do PyInstaller
+build/
+dist/

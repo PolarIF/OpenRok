@@ -1,164 +1,377 @@
 import tkinter as tk
-from tkinter import messagebox
-from line_profiler import profile
+from tkinter import messagebox, ttk
 import cv2
 import numpy as np
 import csv
 from PIL import ImageGrab, ImageEnhance, Image
-from selecao_area import selecionar_area
-import re
-import unicodedata
+import tesserocr  # Faster OCR than pytesseract
 from rapidfuzz import fuzz
 import concurrent.futures
-import tesserocr  # Substitui o pytesseract para OCR
+from google import genai
 
-# Classe principal do aplicativo
+
+# ==========================================================
+# CAPTURE AREA CONFIGURATION
+# ==========================================================
+# Coordinates used to capture parts of the screen.
+# Format: (x, y, width, height)
+#
+# Example:
+# Question = area where the question shows up in the game
+#
+# Base resolution used in this project:
+# 1920x1080 (Full HD)
+# ==========================================================
+
+tamanhos = {
+    "1920x1080": {
+        "Pergunta": (640, 335, 850, 120),
+        "A": (623, 470, 405, 83),
+        "B": (1085, 470, 405, 83),
+        "C": (623, 570, 405, 83),
+        "D": (1085, 570, 405, 83)
+    }
+}
+
+
+# ==========================================================
+# GEMINI CLIENT CONFIGURATION
+# ==========================================================
+# Replace with your Google Gemini API key
+# ==========================================================
+
+client = genai.Client(api_key="my api key here")
+
+
+# ==========================================================
+# MAIN APPLICATION CLASS
+# ==========================================================
 class OpenOCR:
+
     def __init__(self, root):
-        # Carrega o arquivo CSV de perguntas e respostas e guarda em cache
+
+        # --------------------------------------------------
+        # Loads the local question/answer database
+        # --------------------------------------------------
         self.perguntas_respostas = self.carregar_csv('perguntas_respostas_en.csv')
 
-        # Configuração inicial da janela principal
+        # --------------------------------------------------
+        # Main window configuration
+        # --------------------------------------------------
         self.root = root
-        self.root.title("QuizRok")  # Título da janela
-        self.root.geometry("300x250")  # Tamanho da janela
-        self.area_selecionada = None  # Área de captura inicial
+        self.root.title("OpenRok")
+        self.root.geometry("300x250")
 
-        # Rótulo para exibir a pergunta capturada
-        tk.Label(root, text="question:").pack()
-        self.pergunta_label = tk.Label(root, wraplength=250)  # Configura quebra de linha
+        # --------------------------------------------------
+        # Question display area
+        # --------------------------------------------------
+        tk.Label(root, text="Question:").pack()
+
+        self.pergunta_label = tk.Label(
+            root,
+            wraplength=250  # automatic line wrapping
+        )
         self.pergunta_label.pack()
 
-        # Rótulo para exibir a resposta encontrada
-        tk.Label(root, text="response:").pack()
-        self.resposta_label = tk.Label(root, wraplength=250)  # Configura quebra de linha
+        # --------------------------------------------------
+        # Answer display area
+        # --------------------------------------------------
+        tk.Label(root, text="Answer:").pack()
+
+        self.resposta_label = tk.Label(
+            root,
+            wraplength=250
+        )
         self.resposta_label.pack()
 
-        # Botão para capturar a área selecionada
-        self.btn_capturar = tk.Button(root, text="search", command=self.capturar_area)
-        self.btn_capturar.pack(pady=5)
-
-        # Botão para permitir a seleção de uma área na tela
-        self.btn_selecionar_area = tk.Button(root, text="select area", command=self.selecionar_area)
-        self.btn_selecionar_area.pack(pady=5)
-
-        # Checkbox para fixar a janela no topo
+        # --------------------------------------------------
+        # Checkbox to keep the window always on top
+        # --------------------------------------------------
         self.fixar_var = tk.BooleanVar()
-        self.checkbutton = tk.Checkbutton(root, text="Pin Window", variable=self.fixar_var, command=self.fixar_janela)
+
+        self.checkbutton = tk.Checkbutton(
+            root,
+            text="Pin Window",
+            variable=self.fixar_var,
+            command=self.fixar_janela
+        )
         self.checkbutton.pack(pady=10)
 
-    # Método para fixar ou desfixar a janela no topo
+        # --------------------------------------------------
+        # Screen resolution selection
+        # --------------------------------------------------
+        self.tamanho_tela = ttk.Combobox(root, state="readonly")
+        self.tamanho_tela["values"] = ("1920x1080")
+        self.tamanho_tela.current(0)
+        self.tamanho_tela.pack(pady=10)
+
+        # --------------------------------------------------
+        # Capture areas based on the chosen resolution
+        # --------------------------------------------------
+        self.area_pergunta = tamanhos[self.tamanho_tela.get()]["Pergunta"]
+
+        self.letra_A = tamanhos[self.tamanho_tela.get()]["A"]
+        self.letra_B = tamanhos[self.tamanho_tela.get()]["B"]
+        self.letra_C = tamanhos[self.tamanho_tela.get()]["C"]
+        self.letra_D = tamanhos[self.tamanho_tela.get()]["D"]
+
+        # --------------------------------------------------
+        # Main button that starts reading the question
+        # --------------------------------------------------
+        self.pesquisar_botao = tk.Button(
+            root,
+            text="Search",
+            command=lambda: self.responde(self.area_pergunta)
+        )
+        self.pesquisar_botao.pack(pady=10)
+
+
+    # ======================================================
+    # PIN / UNPIN WINDOW ON TOP
+    # ======================================================
     def fixar_janela(self):
         self.root.attributes('-topmost', 1 if self.fixar_var.get() else 0)
 
-    # Método para selecionar a área de captura na tela
-    def selecionar_area(self):
-        self.area_selecionada = selecionar_area()
 
-    # Método principal para capturar e processar a área selecionada
-    @profile
-    def capturar_area(self):
-        if not self.area_selecionada:
-            messagebox.showwarning("Error", "Select an area first.")
-            return
+    # ======================================================
+    # MAIN BOT FUNCTION
+    # ======================================================
+    # Flow:
+    # 1 - Capture the question image
+    # 2 - Run OCR
+    # 3 - Search the local database
+    # 4 - If not found, query Gemini
+    # 5 - Save the new question to the CSV
+    # ======================================================
+    def responde(self, area):
 
-        # Processa a imagem capturada
-        imagem_processada = self.processar_imagem(self.area_selecionada)
-        texto_extraido = self.extrair_texto(imagem_processada)
+        imagem_processada_pergunta = self.processar_imagem(area)
+        texto_extraido_pergunta = self.extrair_texto(imagem_processada_pergunta)
 
-        # Exibe o texto extraído na interface
-        self.pergunta_label.config(text=texto_extraido or "No text detected")
-        if texto_extraido:
-            # Busca a pergunta e resposta correspondente
-            pergunta, resposta = self.buscar_pergunta_resposta(texto_extraido)
-            self.pergunta_label.config(text=pergunta)
-            self.resposta_label.config(text=resposta)
+        self.pergunta_label.config(text=texto_extraido_pergunta or "No text detected")
+
+        if texto_extraido_pergunta:
+
+            pergunta, resposta = self.buscar_pergunta_resposta(texto_extraido_pergunta)
+
+            if pergunta != "Not found" and resposta != "Not found":
+
+                self.pergunta_label.config(text=pergunta)
+                self.resposta_label.config(text=resposta)
+
+            else:
+
+                # --------------------------------------------------
+                # If not found in the database, capture the options
+                # --------------------------------------------------
+
+                imagem_processada_letra_A = self.processar_imagem(self.letra_A)
+                texto_extraido_letra_A = self.extrair_texto(imagem_processada_letra_A)
+
+                imagem_processada_letra_B = self.processar_imagem(self.letra_B)
+                texto_extraido_letra_B = self.extrair_texto(imagem_processada_letra_B)
+
+                imagem_processada_letra_C = self.processar_imagem(self.letra_C)
+                texto_extraido_letra_C = self.extrair_texto(imagem_processada_letra_C)
+
+                imagem_processada_letra_D = self.processar_imagem(self.letra_D)
+                texto_extraido_letra_D = self.extrair_texto(imagem_processada_letra_D)
+
+                resposta_gemini = self.gemini(
+                    texto_extraido_pergunta,
+                    texto_extraido_letra_A,
+                    texto_extraido_letra_B,
+                    texto_extraido_letra_C,
+                    texto_extraido_letra_D
+                )
+
+                print(f"Gemini answer: {resposta_gemini}")
+
+                self.resposta_label.config(text=resposta_gemini)
+                self.pergunta_label.config(text=texto_extraido_pergunta)
+
+                self.salvar_no_csv(texto_extraido_pergunta, resposta_gemini)
+
         else:
             messagebox.showinfo("Error", "No text detected.")
 
-    # Processa a imagem capturada (converte para escala de cinza, aumenta contraste, etc.)
-    @profile
+
+    # ======================================================
+    # IMAGE PROCESSING
+    # ======================================================
+    # Steps applied:
+    # - Screen capture
+    # - Grayscale conversion
+    # - Resize
+    # - Contrast boost
+    # - Blur to remove noise
+    # - Binarization
+    # ======================================================
     def processar_imagem(self, area):
-        x1, y1, x2, y2 = area  # Coordenadas da área selecionada
-        imagem = ImageGrab.grab(bbox=(x1, y1, x2, y2)).convert('L')  # Captura e converte para escala de cinza
-        imagem = imagem.resize((imagem.width * 2, imagem.height * 2), Image.LANCZOS)  # Redimensiona para melhorar OCR
-        imagem = ImageEnhance.Contrast(imagem).enhance(2.0)  # Aumenta o contraste
+
+        x1, y1, w, h = area
+        x2, y2 = x1 + w, y1 + h
+
+        imagem = ImageGrab.grab(bbox=(x1, y1, x2, y2)).convert('L')
+
+        imagem = imagem.resize(
+            (imagem.width * 2, imagem.height * 2),
+            Image.LANCZOS
+        )
+
+        imagem = ImageEnhance.Contrast(imagem).enhance(2.0)
+
         imagem_np = np.array(imagem)
-        imagem_np = cv2.GaussianBlur(imagem_np, (3, 3), 0)  # Aplica desfoque para suavizar ruídos
-        _, imagem_processada = cv2.threshold(imagem_np, 150, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # Binarização
+
+        imagem_np = cv2.GaussianBlur(imagem_np, (3, 3), 0)
+
+        _, imagem_processada = cv2.threshold(
+            imagem_np,
+            150,
+            255,
+            cv2.THRESH_BINARY + cv2.THRESH_OTSU
+        )
+
         return Image.fromarray(imagem_processada)
 
-    # Extrai texto da imagem usando Tesseract OCR
-    @profile
+
+    # ======================================================
+    # OCR (TEXT EXTRACTION)
+    # ======================================================
     def extrair_texto(self, imagem):
-        with tesserocr.PyTessBaseAPI(lang='eng') as api:  # Define idioma como ingles
+
+        with tesserocr.PyTessBaseAPI(lang='eng') as api:
+
             api.SetImage(imagem)
-            texto = api.GetUTF8Text()  # Obtém o texto extraído
+
+            texto = api.GetUTF8Text()
+
+            print(f"Extracted text: {texto}")
+
             return texto.strip()
 
-    # Normaliza o texto (remove acentos, converte para minúsculas, etc.)
-    @profile
-    def padronizar_texto(self, texto):
-        texto = texto.lower()
-        texto = unicodedata.normalize('NFKD', texto).encode('ascii', 'ignore').decode('utf-8')
-        return re.sub(r'[^\w\s]', '', texto)  # Remove caracteres especiais
 
-    # Busca a melhor correspondência de pergunta e resposta no CSV
-    @profile
+    # ======================================================
+    # SEARCH THE QUESTION IN THE LOCAL DATABASE
+    # ======================================================
+    # Uses RapidFuzz for approximate matching
+    # to cope with OCR errors.
+    # ======================================================
     def buscar_pergunta_resposta(self, texto_extraido):
-        texto_padronizado = self.padronizar_texto(texto_extraido)
-        similaridade_limite = 50  # Pontuação mínima para considerar uma correspondência válida
-        limite_minimo = 20  # Limite inferior para perguntas aproximadas
 
-        melhor_pergunta, melhor_resposta = "No matching questions found", "No answers founda"
+        import unicodedata
+
+        similaridade_limite = 95
+
+        def normalizar(texto):
+            texto = texto.lower().strip().replace("\n", " ")
+            texto = ''.join(
+                c for c in unicodedata.normalize('NFD', texto)
+                if unicodedata.category(c) != 'Mn'
+            )
+            return texto
+
+        texto_normalizado = normalizar(texto_extraido)
+
+        melhor_pergunta = "Not found"
+        melhor_resposta = "Not found"
         melhor_similaridade = similaridade_limite
 
-        # Filtra candidatos que têm potencial de correspondência
         candidatos = [
             (pergunta, resposta)
             for pergunta, resposta in self.perguntas_respostas
-            if abs(len(pergunta) - len(texto_padronizado)) <= 20
-            or any(palavra in texto_padronizado for palavra in pergunta.split())
+            if abs(len(pergunta) - len(texto_extraido)) <= 5
+            or any(palavra in texto_normalizado for palavra in normalizar(pergunta).split())
         ]
 
-        # Paraleliza a avaliação de similaridade para melhorar o desempenho
         with concurrent.futures.ThreadPoolExecutor() as executor:
+
             futures = {
-                executor.submit(fuzz.partial_ratio, texto_padronizado, pergunta_padronizada): (pergunta_padronizada, resposta)
-                for pergunta_padronizada, resposta in candidatos
+                executor.submit(
+                    fuzz.partial_ratio,
+                    texto_normalizado,
+                    normalizar(pergunta)
+                ): (pergunta, resposta)
+
+                for pergunta, resposta in candidatos
             }
 
-            # Verifica os resultados das tarefas paralelas
             for future in concurrent.futures.as_completed(futures):
-                similaridade = future.result()
-                pergunta_padronizada, resposta_csv = futures[future]
 
-                # Atualiza a melhor correspondência encontrada
+                similaridade = future.result()
+                pergunta, resposta_csv = futures[future]
+
                 if similaridade > melhor_similaridade:
                     melhor_similaridade = similaridade
-                    melhor_pergunta = pergunta_padronizada
+                    melhor_pergunta = pergunta
                     melhor_resposta = resposta_csv
 
-            # Retorna a melhor correspondência se atingir o limite mínimo
             if melhor_similaridade >= similaridade_limite:
                 return melhor_pergunta, melhor_resposta
 
-            similaridade_limite -= 5  # Reduz limite para buscar aproximações menores
-
         return melhor_pergunta, melhor_resposta
 
-    # Carrega o CSV com perguntas e respostas e padroniza os textos
-    @profile
+
+    # ======================================================
+    # LOAD CSV DATABASE
+    # ======================================================
     def carregar_csv(self, caminho_csv):
+
         perguntas_respostas = []
+
         with open(caminho_csv, mode='r', encoding='utf-8') as file:
+
             reader = csv.reader(file)
+
             for row in reader:
-                pergunta_padronizada = self.padronizar_texto(row[0])
-                perguntas_respostas.append((pergunta_padronizada, row[1]))
+                perguntas_respostas.append((row[0], row[1]))
+
         return perguntas_respostas
 
-# Inicializa a interface gráfica
+
+    # ======================================================
+    # GEMINI QUERY
+    # ======================================================
+    def gemini(self, pergunta, letra_A, letra_B, letra_C, letra_D):
+
+        response = client.models.generate_content(
+
+            model="gemini-3.1-flash-lite-preview",
+
+            contents=f"Give me only the answer among the four options, "
+                     f"question: {pergunta} "
+                     f"{letra_A} "
+                     f"{letra_B} "
+                     f"{letra_C} "
+                     f"{letra_D}"
+        )
+
+        return response.text
+
+
+    # ======================================================
+    # SAVE NEW QUESTIONS TO THE DATABASE
+    # ======================================================
+    def salvar_no_csv(self, pergunta, resposta):
+
+        if (pergunta, resposta) not in self.perguntas_respostas:
+
+            with open(
+                "perguntas_respostas_en.csv",
+                "a",
+                newline="",
+                encoding="utf-8"
+            ) as file:
+
+                writer = csv.writer(file)
+                writer.writerow([pergunta, resposta])
+
+            self.perguntas_respostas.append((pergunta, resposta))
+
+
+# ==========================================================
+# PROGRAM INITIALIZATION
+# ==========================================================
 root = tk.Tk()
 app = OpenOCR(root)
 root.mainloop()
