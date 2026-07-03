@@ -1,172 +1,145 @@
+> **Language:** **English** · [Português](README.pt-BR.md)
+
 # OpenRok
 
-**Assistente para o evento *Liceu da Sabedoria* (Peerless Scholar / Lyceum of Wisdom) do jogo Rise of Kingdoms.**
+**A helper for the *Lyceum of Wisdom* (Peerless Scholar) event in Rise of Kingdoms.**
 
-O OpenRok lê a pergunta que aparece na tela do jogo usando OCR, procura a resposta em um banco local de perguntas e respostas e a exibe em uma pequena janela flutuante — tudo em segundos, para dar tempo de responder antes do cronômetro acabar.
+OpenRok reads the question shown on the game screen using OCR, looks the answer up in a local question/answer database and — when the question is new — asks Google Gemini, displaying the result in a small floating window. All in a couple of seconds, so you can answer before the timer runs out.
 
 ---
 
-## Sobre o evento
+## About the event
 
-O **Liceu da Sabedoria** (em inglês, *Lyceum of Wisdom* / evento *Peerless Scholar*) é um evento de perguntas e respostas de múltipla escolha do Rise of Kingdoms. As perguntas cobrem tanto o lore do jogo quanto história e cultura geral, e o jogador é recompensado por acertar.
+The **Lyceum of Wisdom** (the *Peerless Scholar* event) is a multiple-choice trivia event in Rise of Kingdoms. The questions cover both game lore and general history/culture, and you are rewarded for answering correctly.
 
-O desafio é o **tempo**: o evento é dividido em fases (Preliminar, Intermediária e Final), e nas fases mais avançadas cada pergunta tem um cronômetro curto — de 10 a 15 segundos. É praticamente impossível pesquisar a resposta manualmente a tempo, e é exatamente esse gargalo que o OpenRok resolve: ele identifica a pergunta e devolve a resposta quase instantaneamente.
+The challenge is **time**: the event is split into phases (Preliminary, Midterm and Final), and in the later phases each question has a short timer — 10 to 15 seconds. It is nearly impossible to look the answer up by hand in time, and that is exactly the bottleneck OpenRok solves: it identifies the question and returns the answer almost instantly.
 
-Referências sobre o evento:
-- [Liceu da Sabedoria — Perguntas e Respostas (Elite Brasil)](https://elite-bras.webnode.page/l/liceu-da-sabedoria-perguntas-e-respostas/)
+Event references:
 - [Lyceum of Wisdom — Rise of Kingdoms Wiki](https://riseofkingdoms.fandom.com/wiki/Buildings/Lyceum_of_Wisdom)
 - [All Peerless Scholar Questions & Answers (rok.guide)](https://www.rok.guide/buildings/lyceum-of-wisdom/)
+- [Peerless Scholar Answers (Rise of Kingdoms Guides)](https://riseofkingdomsguides.com/lyceum-of-wisdom-rok-answers/)
 
 ---
 
-## Como funciona
+## How it works
 
-1. **Captura de tela** — o programa tira um print da área onde a pergunta aparece no jogo.
-2. **Pré-processamento da imagem** — a imagem é convertida para escala de cinza, ampliada (2×), tem o contraste aumentado, passa por um leve desfoque para reduzir ruído e é binarizada (`OpenCV`), tudo para maximizar a precisão do OCR.
-3. **OCR** — o texto é extraído com o [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`).
-4. **Busca no banco local** — o texto reconhecido é normalizado (minúsculas, sem acentos/pontuação) e comparado com o banco de perguntas usando *fuzzy matching* ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)), o que tolera erros de leitura do OCR. A comparação roda em paralelo (`ThreadPoolExecutor`) para ser rápida.
-5. **Exibição** — a pergunta identificada e a resposta correspondente são mostradas em uma pequena janela que pode ser fixada sempre no topo (*Pin Window*).
-
----
-
-## As duas versões
-
-O projeto tem duas versões, em pastas separadas:
-
-### `OpenRokPTBR` — versão em Português (mais completa)
-
-- Banco de perguntas em **português** (`perguntas_respostas.csv`).
-- **Áreas de captura fixas** para resolução **1920×1080** — não é preciso selecionar a região da tela manualmente. As coordenadas da pergunta e das alternativas (A, B, C, D) já estão mapeadas.
-- **Fallback com IA (Google Gemini):** quando a pergunta **não** é encontrada no banco local, o programa também captura as quatro alternativas por OCR e as envia, junto da pergunta, para o Gemini, que escolhe a resposta correta.
-- **Banco que se auto-alimenta:** toda resposta nova obtida pela IA é gravada de volta no CSV, então o banco local cresce e fica mais completo com o uso.
-
-### `OpenRokEN` — versão em Inglês (legada / desatualizada)
-
-> ⚠️ Esta é a versão **original e mais antiga** do projeto. A versão PTBR é a mais recente e completa; a intenção é portar as melhorias da PTBR (áreas fixas, fallback com Gemini e banco auto-alimentado) para cá.
-
-- Banco de perguntas em **inglês** (`perguntas_respostas_en.csv`).
-- **Seleção manual da área** da pergunta na tela (via `cv2.selectROI`) — funciona em qualquer resolução/posição de janela.
-- Apenas busca no banco local (sem fallback de IA).
-- Inclui *spec* do PyInstaller (`main.spec`) para gerar um executável `.exe`.
-
-> As duas versões compartilham o mesmo núcleo: pré-processamento de imagem + OCR + busca *fuzzy* no CSV. A diferença principal é o idioma, o modo de captura e o fallback de IA.
+1. **Screen capture** — the program grabs the fixed area where the question (and the A/B/C/D options) appear in the game.
+2. **Image pre-processing** — the image is converted to grayscale, upscaled (2×), contrast-boosted, lightly blurred to reduce noise and binarized (`OpenCV`), all to maximize OCR accuracy.
+3. **OCR** — the text is extracted with [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`).
+4. **Local database lookup** — the recognized text is normalized (lowercase, no accents/punctuation) and compared against the question database using *fuzzy matching* ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)), which tolerates OCR errors. The comparison runs in parallel (`ThreadPoolExecutor`) to stay fast.
+5. **AI fallback** — if the question is not in the local database, the four options are also read via OCR and sent, together with the question, to **Google Gemini**, which picks the correct answer.
+6. **Self-feeding database** — every new answer obtained from the AI is written back to the CSV, so the local database grows and gets more complete with use.
+7. **Display** — the identified question and matching answer are shown in a small window that can be pinned always on top.
 
 ---
 
-## Requisitos
+## The two versions
 
-- **Windows** — o projeto foi feito para Windows (a wheel do `tesserocr` incluída é `cp312 / win_amd64`, além do uso de `PIL.ImageGrab`, `pywin32`, etc.).
-- **Python 3.12** (compatível com a wheel do `tesserocr` fornecida).
-- **[Tesseract-OCR](https://github.com/tesseract-ocr/tesseract)** instalado, com os dados de idioma:
-  - `eng` para a versão EN;
-  - `por` para a versão PTBR.
-- Para a versão PTBR: uma **chave de API do Google Gemini**.
+The project ships two versions, in separate folders. They share the same core (fixed-area capture → OCR → fuzzy CSV lookup → Gemini fallback → self-feeding database) and differ essentially in **language**:
 
----
+### `OpenRokEN` — English
 
-## Instalação
+- **English** question database (`perguntas_respostas_en.csv`).
+- OCR in English (`eng`) and Gemini prompt / interface in English.
+- Includes a PyInstaller *spec* (`main.spec`) to build a `.exe`.
 
-Escolha a pasta da versão desejada. Exemplo com a versão em português:
+### `OpenRokPTBR` — Portuguese
 
-```bash
-cd OpenRokPTBR
-
-# (recomendado) crie um ambiente virtual
-python -m venv .venv
-.venv\Scripts\activate
-
-# instale as dependências
-pip install -r requeriments.txt
-```
-
-Para a versão em inglês, use `OpenRokEN/requirements.txt`.
-
-> A wheel `tesserocr-2.7.1-cp312-cp312-win_amd64.whl` já está incluída em cada pasta e é usada para instalar o `tesserocr` sem precisar compilar.
+- **Portuguese** question database (`perguntas_respostas.csv`).
+- OCR in Portuguese (`por`) and Gemini prompt / interface in Portuguese.
 
 ---
 
-## Configuração
+## Requirements
 
-### Versão PTBR
-
-- Abra `OpenRokPTBR/main.py` e insira sua chave do Gemini:
-  ```python
-  client = genai.Client(api_key="SUA_API_KEY_AQUI")
-  ```
-- As áreas de captura estão no dicionário `tamanhos` (resolução `1920x1080`). Se seu jogo estiver em outra resolução ou posição, ajuste as coordenadas `(x, y, largura, altura)` de `Pergunta`, `A`, `B`, `C` e `D`.
-
-### Versão EN
-
-- O arquivo `OpenRokEN/config.json` guarda o caminho do executável do Tesseract e uma área de captura padrão:
-  ```json
-  {
-      "tesseract_path": "C:/Program Files/Tesseract-OCR/tesseract.exe"
-  }
-  ```
-  Ajuste `tesseract_path` conforme sua instalação.
+- **Windows** — the project targets Windows (the bundled `tesserocr` wheel is `cp312 / win_amd64`, plus the use of `PIL.ImageGrab`, `pywin32`, etc.).
+- **Python 3.12** (compatible with the bundled `tesserocr` wheel).
+- **[Tesseract-OCR](https://github.com/tesseract-ocr/tesseract)** installed, with the language data:
+  - `eng` for the EN version;
+  - `por` for the PTBR version.
+- A **Google Gemini API key** (both versions use the AI fallback).
+- A game running at **1920×1080** (the capture coordinates are mapped for that resolution).
 
 ---
 
-## Como usar
+## Installation
 
-### Versão PTBR
-
-```bash
-cd OpenRokPTBR
-python main.py
-```
-
-1. Deixe o jogo aberto em **1920×1080**, na tela da pergunta do Liceu da Sabedoria.
-2. Clique em **Pesquisar**.
-3. A pergunta e a resposta aparecem na janela. Se a pergunta for inédita, o Gemini responde e a pergunta é salva no banco para as próximas vezes.
-4. Use **Fixar Janela** para manter o OpenRok sempre visível por cima do jogo.
-
-### Versão EN
+Pick the folder for the version you want. Example with the English version:
 
 ```bash
 cd OpenRokEN
+
+# (recommended) create a virtual environment
+python -m venv .venv
+.venv\Scripts\activate
+
+# install the dependencies
+pip install -r requirements.txt
+```
+
+For the Portuguese version, use `OpenRokPTBR/requeriments.txt`.
+
+> The `tesserocr-2.7.1-cp312-cp312-win_amd64.whl` wheel is bundled in each folder and is used to install `tesserocr` without compiling.
+
+---
+
+## Configuration
+
+In `OpenRokEN/main.py` (or `OpenRokPTBR/main.py`):
+
+- Set your Gemini API key:
+  ```python
+  client = genai.Client(api_key="YOUR_API_KEY_HERE")
+  ```
+- The capture areas live in the `tamanhos` dictionary (resolution `1920x1080`). If your game runs at a different resolution or position, adjust the `(x, y, width, height)` coordinates for `Pergunta` (question), `A`, `B`, `C` and `D`.
+
+---
+
+## Usage
+
+```bash
+cd OpenRokEN      # or: cd OpenRokPTBR
 python main.py
 ```
 
-1. Clique em **select area** e desenhe um retângulo sobre a região onde a pergunta aparece.
-2. Clique em **search** para capturar e buscar a resposta.
-3. Use **Pin Window** para manter a janela sempre no topo.
+1. Keep the game open at **1920×1080**, on the Lyceum of Wisdom question screen.
+2. Click **Search** (**Pesquisar** in the PT version).
+3. The question and answer appear in the window. If the question is new, Gemini answers it and the question is saved to the database for next time.
+4. Use **Pin Window** to keep OpenRok always visible on top of the game.
 
 ---
 
-## Estrutura do projeto
+## Project structure
 
 ```
 OpenRok/
-├── OpenRokPTBR/                # Versão em português (com fallback Gemini)
-│   ├── main.py                 # App principal (Tkinter + OCR + CSV + Gemini)
-│   ├── perguntas_respostas.csv # Banco local de perguntas e respostas (PT)
-│   ├── requeriments.txt        # Dependências
-│   └── tesserocr-*.whl         # Wheel do tesserocr para Windows
+├── OpenRokEN/                     # English version
+│   ├── main.py                    # Main app (Tkinter + OCR + CSV + Gemini)
+│   ├── perguntas_respostas_en.csv # Local question/answer database (EN)
+│   ├── requirements.txt           # Dependencies
+│   ├── main.spec                  # PyInstaller .exe build spec
+│   └── tesserocr-*.whl            # tesserocr wheel for Windows
 │
-└── OpenRokEN/                  # Versão em inglês (seleção manual de área)
-    ├── main.py                 # App principal (Tkinter + OCR + CSV)
-    ├── selecao_area.py         # Seleção da área da tela (cv2.selectROI)
-    ├── config.json             # Caminho do Tesseract e área padrão
-    ├── perguntas_respostas_en.csv
-    ├── requirements.txt
-    ├── main.spec               # Build de .exe com PyInstaller
-    └── tesserocr-*.whl
+└── OpenRokPTBR/                   # Portuguese version
+    ├── main.py                    # Main app (Tkinter + OCR + CSV + Gemini)
+    ├── perguntas_respostas.csv    # Local question/answer database (PT)
+    ├── requeriments.txt           # Dependencies
+    └── tesserocr-*.whl            # tesserocr wheel for Windows
 ```
 
 ---
 
-## Tecnologias
+## Tech stack
 
 - **Python** + **Tkinter** (interface)
-- **OpenCV** e **Pillow** (captura e pré-processamento de imagem)
+- **OpenCV** and **Pillow** (screen capture and image pre-processing)
 - **Tesseract / tesserocr** (OCR)
-- **RapidFuzz** (busca aproximada tolerante a erros de OCR)
-- **Google Gemini** (fallback de IA — apenas na versão PTBR)
-- **PyInstaller** (empacotamento em `.exe` — versão EN)
+- **RapidFuzz** (approximate matching, tolerant to OCR errors)
+- **Google Gemini** (AI fallback for unknown questions)
+- **PyInstaller** (packaging into an `.exe` — EN version)
 
 ---
 
-## Aviso
+## Disclaimer
 
-Este projeto foi feito para fins de estudo e como ferramenta auxiliar pessoal. Use por sua conta e risco e de acordo com os termos de serviço do Rise of Kingdoms.
+This project was built for study purposes and as a personal helper tool. Use it at your own risk and in accordance with the Rise of Kingdoms terms of service.
