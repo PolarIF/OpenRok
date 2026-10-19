@@ -12,3 +12,9 @@ __pycache__/
 # Builds do PyInstaller
 build/
 dist/
+
+# pytest
+.pytest_cache/
+
+# Brainstorm mockups
+.superpowers/

@@ -23,89 +23,91 @@ Referências sobre o evento:
 
 ## Como funciona
 
-1. **Captura de tela** — o programa captura a área fixa onde a pergunta (e as alternativas A/B/C/D) aparecem no jogo.
+1. **Captura de tela** — o programa captura, de uma só vez, a área fixa onde a pergunta e as alternativas A/B/C/D aparecem no jogo.
 2. **Pré-processamento da imagem** — a imagem é convertida para escala de cinza, ampliada (2×), tem o contraste aumentado, passa por um leve desfoque para reduzir ruído e é binarizada (`OpenCV`), tudo para maximizar a precisão do OCR.
-3. **OCR** — o texto é extraído com o [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`).
-4. **Busca no banco local** — o texto reconhecido é normalizado (minúsculas, sem acentos/pontuação) e comparado com o banco de perguntas usando *fuzzy matching* ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)), o que tolera erros de leitura do OCR. A comparação roda em paralelo (`ThreadPoolExecutor`) para ser rápida.
-5. **Fallback com IA** — se a pergunta não estiver no banco local, as quatro alternativas também são lidas por OCR e enviadas, junto da pergunta, para o **Google Gemini**, que escolhe a resposta correta.
-6. **Banco que se auto-alimenta** — toda resposta nova obtida pela IA é gravada de volta no CSV, então o banco local cresce e fica mais completo com o uso.
-7. **Exibição** — a pergunta identificada e a resposta correspondente são mostradas em uma pequena janela que pode ser fixada sempre no topo.
+3. **OCR** — o texto é extraído com o [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`). As instâncias do Tesseract são carregadas uma única vez ao abrir o programa e reaproveitadas, e as quatro alternativas são lidas em paralelo.
+4. **Busca no banco local** — o texto reconhecido é normalizado (minúsculas, sem acentos, sem pontuação) e comparado com o banco de perguntas usando *fuzzy matching* ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)), o que tolera erros de leitura do OCR. Uma checagem palavra a palavra evita confundir perguntas do mesmo modelo que diferem em uma palavra (ex.: *"Qual das seguintes NÃO é uma habilidade de Mulan?"* × *"...de Osman I?"*).
+5. **Fallback com IA** — se a pergunta não estiver no banco local, as quatro alternativas são enviadas, junto da pergunta, para o **Google Gemini**, que responde com a letra da alternativa correta.
+6. **Banco que se auto-alimenta** — quando a resposta do Gemini aponta claramente para uma das alternativas, a pergunta e essa alternativa são gravadas no CSV, então o banco local cresce com o uso. Respostas ambíguas são exibidas mas **não** são salvas, para que uma resposta duvidosa nunca contamine o banco.
+7. **Exibição** — a pergunta, a resposta, a origem (banco ou Gemini) e o tempo gasto aparecem em uma pequena janela que pode ser fixada sempre no topo. A busca roda em segundo plano, então a janela nunca congela.
 
 ---
 
-## As duas versões
+## Idiomas
 
-O projeto tem duas versões, em pastas separadas. Elas compartilham o mesmo núcleo (captura por áreas fixas → OCR → busca *fuzzy* no CSV → fallback com Gemini → banco auto-alimentado) e diferem essencialmente no **idioma**:
+Um único programa atende os dois idiomas; cada um tem seu banco de perguntas, idioma de OCR, textos da interface e prompt do Gemini:
 
-### `OpenRokEN` — versão em Inglês
+| Idioma | OCR | Banco |
+|---|---|---|
+| English (padrão) | `eng` | `data/perguntas_respostas_en.csv` |
+| Português | `por` | `data/perguntas_respostas_pt.csv` |
 
-- Banco de perguntas em **inglês** (`perguntas_respostas_en.csv`).
-- OCR em inglês (`eng`) e prompt do Gemini / interface em inglês.
-- Inclui *spec* do PyInstaller (`main.spec`) para gerar um executável `.exe`.
-
-### `OpenRokPTBR` — versão em Português
-
-- Banco de perguntas em **português** (`perguntas_respostas.csv`).
-- OCR em português (`por`) e prompt do Gemini / interface em português.
+Troque pelo seletor de idioma na janela, ou inicie com `--lang pt`.
 
 ---
 
 ## Requisitos
 
-- **Windows** — o projeto foi feito para Windows (a wheel do `tesserocr` incluída é `cp312 / win_amd64`, além do uso de `PIL.ImageGrab`, `pywin32`, etc.).
-- **Python 3.12** (compatível com a wheel do `tesserocr` fornecida).
-- **[Tesseract-OCR](https://github.com/tesseract-ocr/tesseract)** instalado, com os dados de idioma:
-  - `eng` para a versão EN;
-  - `por` para a versão PTBR.
-- Uma **chave de API do Google Gemini** (as duas versões usam o fallback de IA).
-- O jogo rodando em **1920×1080** (as coordenadas de captura estão mapeadas para essa resolução).
+- **Windows** — o projeto é voltado para Windows (o wheel do `tesserocr` incluído é `cp312 / win_amd64`, e a captura de tela usa `PIL.ImageGrab`).
+- **Python 3.12** (compatível com o wheel do `tesserocr` incluído).
+- **[Tesseract-OCR](https://github.com/tesseract-ocr/tesseract)** instalado, com os dados de idioma `eng` e/ou `por`. Se o Tesseract não encontrar os dados, defina `TESSDATA_PREFIX` apontando para a pasta `tessdata`.
+- Uma **chave de API do Google Gemini** para perguntas que não estão no banco (opcional — sem ela, o OpenRok continua respondendo tudo o que está no banco).
+- Jogo rodando em **1920×1080** (as coordenadas de captura estão mapeadas para essa resolução).
 
 ---
 
 ## Instalação
 
-Escolha a pasta da versão desejada. Exemplo com a versão em português:
-
 ```bash
-cd OpenRokPTBR
-
 # (recomendado) crie um ambiente virtual
 python -m venv .venv
 .venv\Scripts\activate
 
 # instale as dependências
-pip install -r requeriments.txt
+pip install -r requirements.txt
 ```
 
-Para a versão em inglês, use `OpenRokEN/requirements.txt`.
-
-> A wheel `tesserocr-2.7.1-cp312-cp312-win_amd64.whl` já está incluída em cada pasta e é usada para instalar o `tesserocr` sem precisar compilar.
+> O wheel `wheels/tesserocr-2.7.1-cp312-cp312-win_amd64.whl` é usado para instalar o `tesserocr` no Windows sem compilar.
 
 ---
 
 ## Configuração
 
-Em `OpenRokPTBR/main.py` (ou `OpenRokEN/main.py`):
-
-- Insira sua chave do Gemini:
-  ```python
-  client = genai.Client(api_key="SUA_API_KEY_AQUI")
+- **Chave do Gemini** — lida da variável de ambiente `GEMINI_API_KEY` (nunca coloque no código):
+  ```bash
+  setx GEMINI_API_KEY "sua-chave"
   ```
-- As áreas de captura estão no dicionário `tamanhos` (resolução `1920x1080`). Se seu jogo estiver em outra resolução ou posição, ajuste as coordenadas `(x, y, largura, altura)` de `Pergunta`, `A`, `B`, `C` e `D`.
+  Abra um novo terminal depois disso. O modelo pode ser trocado com `OPENROK_MODEL` (padrão: `gemini-3.1-flash-lite-preview`).
+- **Áreas de captura** — dicionário `tamanhos` em `main.py` (resolução `1920x1080`). Se o seu jogo estiver em outra resolução ou posição, adicione uma entrada com as coordenadas `(x, y, largura, altura)` de `Pergunta`, `A`, `B`, `C` e `D`; ela aparece no seletor de resolução.
+- **Escala de tela** — o OpenRok se declara DPI-aware, então a escala do Windows (125%, 150%…) não desloca as áreas de captura.
 
 ---
 
-## Como usar
+## Uso
 
 ```bash
-cd OpenRokPTBR    # ou: cd OpenRokEN
-python main.py
+python main.py            # Inglês
+python main.py --lang pt  # Português
 ```
 
-1. Deixe o jogo aberto em **1920×1080**, na tela da pergunta do Liceu da Sabedoria.
-2. Clique em **Pesquisar** (**Search** na versão EN).
-3. A pergunta e a resposta aparecem na janela. Se a pergunta for inédita, o Gemini responde e a pergunta é salva no banco para as próximas vezes.
-4. Use **Fixar Janela** para manter o OpenRok sempre visível por cima do jogo.
+1. Deixe o jogo aberto em **1920×1080**, na tela de perguntas do Liceu da Sabedoria.
+2. Clique em **Pesquisar**.
+3. A pergunta e a resposta aparecem na janela, com a origem. Se a pergunta for inédita, o Gemini responde e ela é salva no banco para as próximas vezes.
+4. Use **Fixar Janela** para manter o OpenRok sempre visível sobre o jogo.
+
+### Gerando o `.exe`
+
+```bash
+pyinstaller main.spec
+```
+
+O executável (`dist/OpenRok.exe`) leva uma cópia dos bancos e os extrai para uma pasta `data/` ao lado dele na primeira execução; é nessa pasta que as perguntas novas são salvas.
+
+### Testes
+
+```bash
+pytest
+```
 
 ---
 
@@ -113,18 +115,14 @@ python main.py
 
 ```
 OpenRok/
-├── OpenRokPTBR/                   # Versão em português
-│   ├── main.py                    # App principal (Tkinter + OCR + CSV + Gemini)
-│   ├── perguntas_respostas.csv    # Banco local de perguntas e respostas (PT)
-│   ├── requeriments.txt           # Dependências
-│   └── tesserocr-*.whl            # Wheel do tesserocr para Windows
-│
-└── OpenRokEN/                     # Versão em inglês
-    ├── main.py                    # App principal (Tkinter + OCR + CSV + Gemini)
-    ├── perguntas_respostas_en.csv # Banco local de perguntas e respostas (EN)
-    ├── requirements.txt           # Dependências
-    ├── main.spec                  # Build de .exe com PyInstaller
-    └── tesserocr-*.whl            # Wheel do tesserocr para Windows
+├── main.py                        # O aplicativo (Tkinter + OCR + banco + Gemini)
+├── data/
+│   ├── perguntas_respostas_en.csv # Banco de perguntas e respostas (EN)
+│   └── perguntas_respostas_pt.csv # Banco de perguntas e respostas (PT)
+├── tests/test_main.py             # Testes (busca, leitura da resposta do Gemini, fluxo)
+├── requirements.txt               # Dependências
+├── main.spec                      # Spec do PyInstaller para gerar o .exe
+└── wheels/tesserocr-*.whl         # Wheel do tesserocr para Windows
 ```
 
 ---
@@ -132,11 +130,12 @@ OpenRok/
 ## Tecnologias
 
 - **Python** + **Tkinter** (interface)
+- **pytest** (testes)
 - **OpenCV** e **Pillow** (captura e pré-processamento de imagem)
 - **Tesseract / tesserocr** (OCR)
 - **RapidFuzz** (busca aproximada tolerante a erros de OCR)
 - **Google Gemini** (fallback de IA para perguntas inéditas)
-- **PyInstaller** (empacotamento em `.exe` — versão EN)
+- **PyInstaller** (empacotamento em `.exe`)
 
 ---
 

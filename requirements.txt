@@ -1,0 +1,13 @@
+google-genai==1.66.0
+numpy==2.1.3
+opencv-contrib-python==4.10.0.84
+pillow==11.0.0
+RapidFuzz==3.10.1
+# Bundled Windows wheel (Python 3.12); elsewhere tesserocr ships its own wheels
+./wheels/tesserocr-2.7.1-cp312-cp312-win_amd64.whl ; sys_platform == "win32"
+tesserocr ; sys_platform != "win32"
+
+# Build the .exe:  pyinstaller main.spec
+pyinstaller==6.11.1
+# Tests:  pytest
+pytest
