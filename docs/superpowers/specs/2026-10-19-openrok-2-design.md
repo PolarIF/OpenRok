@@ -100,7 +100,7 @@ AGUARDANDO_JOGO ──janela do jogo ativa──▶ OUTRA_TELA ──assinatura 
       ▲                                       ▲                          │
       └──────janela perdida/inativa───────────┴────── assinatura falhou ─┤
                                                                          ▼
-                  PERGUNTA ──alguma opção azul──▶ RESPONDIDA ──verde──▶ RESULTADO
+                  PERGUNTA ──opção colorida (azul)──▶ RESPONDIDA ──verde──▶ RESULTADO
                      │                                                     │
                      └─────────────────── verde direto (simulado) ─────────┘
                   RESULTADO ──opções neutras e hash novo──▶ PERGUNTA
@@ -113,7 +113,7 @@ AGUARDANDO_JOGO ──janela do jogo ativa──▶ OUTRA_TELA ──assinatura 
 4. **Estado das opções**, pela fração de pixels de cada faixa HSV, medida só no **interior** da caixa:
    - *verde:* fração > 0,35 numa caixa. A faixa vale para o verde do jogo; o verde do overlay fica fora da caixa (ver §6).
    - *vermelho:* fração > 0,35.
-   - *azul:* fração > 0,35 numa faixa de matiz separada. A faixa e o limiar são confirmados com um print do estado azul, que é pré-requisito dos testes do marco 1.
+   - *respondida/aguardando* (o azul do fim de semana): a caixa **não está bege** e **não está verde nem vermelha**, ou seja, fração de pixels fora da faixa do bege > 0,35. Não depende do tom exato do azul. Quando chegar o print do estado azul, ele vira um teste de confirmação.
    - *eliminada* (Lampejo): caixa sem texto e com contraste baixo; essa opção fica de fora.
 5. **Pergunta nova.** Todas as opções neutras e o dHash de 64 bits da área da pergunta mudou (distância de Hamming > 6). Exige **o mesmo hash em 2 ciclos seguidos** (~66 ms) para ignorar a animação de troca.
 6. **Resolver a pergunta**, nesta ordem, parando no primeiro que responder:
@@ -252,14 +252,14 @@ Se as três passarem, o código do Windows serve para o Linux com as implementa�
   - `ia`: presets, mapeamento de erros HTTP com `httpx.MockTransport`.
 - **Fixtures reais** em `tests/fixtures/`:
   - os 4 prints, recortados para a região do pergaminho (x 560–1520, y 330–670) para ficarem menores, sem perda;
-  - o vídeo de 16 s;
-  - um print do estado **azul**, a ser fornecido pelo mantenedor.
+  - o vídeo **cortado em 0–12 s**, sem o trecho em que aparecem outros aplicativos;
+  - o print do estado **azul**, quando o mantenedor puder tirá-lo num exame de fim de semana. Esse teste fica marcado como `skip` até o arquivo existir; não bloqueia nenhum marco.
 
   Os testes de cor e OCR rodam sobre elas.
 - **Replay:** os quadros do vídeo passam pelo `vigia`, com janela e captura simuladas, e o teste confere a sequência de eventos:
   1. `PerguntaDetectada`, `Sugestao` (letra certa) e `Resultado` na primeira pergunta;
   2. depois a segunda pergunta;
-  3. e nenhum evento durante a troca de janela (12–14,5 s).
+  3. a troca de janela (jogo inativo) é testada com quadros sintéticos e uma janela simulada como inativa: nenhum evento e overlay escondido.
 
   O mesmo replay mede os tempos do §1.
 - **Benchmark:** `bench/benchmark.py` compara as versões e entra no repositório.
@@ -280,7 +280,7 @@ Cada marco tem seu próprio plano de implementação.
 
 | Risco | Mitigação |
 |---|---|
-| Faixa do azul não confirmada | Print do estado azul como pré-requisito dos testes do marco 1 |
+| Tom do azul não confirmado | O estado é detectado como "colorido, mas não verde nem vermelho"; o print de sábado só confirma |
 | Layout diferente em outras resoluções ou proporções | Escala por `min(w/1920, h/1080)` mais calibração manual |
 | Captura ou overlay no XWayland do KWin | Teste de viabilidade no início do marco 4, com plano B definido |
 | `WDA_EXCLUDEFROMCAPTURE` indisponível (Windows antigo) | O contorno por fora da caixa já evita o falso verde |
