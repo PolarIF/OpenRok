@@ -104,12 +104,3 @@ class Gemini:
     def escolher(self, pergunta, opcoes):
         """Letter of the option the model picked, or None."""
         return self._perguntar(pergunta, opcoes)[1]
-
-    def responder(self, pergunta, opcoes):
-        """Returns (answer, validated). validated=True when the reply maps to an option."""
-        texto, letra = self._perguntar(pergunta, opcoes)
-
-        if letra:
-            return " ".join(opcoes[LETRAS.index(letra)].split()), True
-
-        return texto, False

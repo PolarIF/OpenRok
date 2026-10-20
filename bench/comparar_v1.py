@@ -52,11 +52,10 @@ def fake_grab(bbox=None, **kw):
 ImageGrab.grab = fake_grab
 
 # ---------------------------------------------------------- load both versions
-import main  # noqa: E402
 from openrok import banco, ia, ocr, texto as modulo_texto  # noqa: E402
 
 novo = types.SimpleNamespace(
-    BancoPerguntas=banco.BancoPerguntas, MotorOCR=ocr.MotorOCR, Pesquisa=main.Pesquisa,
+    BancoPerguntas=banco.BancoPerguntas, MotorOCR=ocr.MotorOCR,
     extrair_letra=ia.extrair_letra, normalizar=modulo_texto.normalizar, fuzz=modulo_texto.fuzz)
 
 src = git_show("OpenRokEN/main.py")
@@ -163,15 +162,6 @@ for q, a in random.sample(validas, 60):
     ops = random.sample(opcoes_pool, 3) + [a]; random.shuffle(ops)
     casos.append((q, a, ops))
 
-class FakeGemini:
-    """Replies with the right letter instantly, so network time is excluded."""
-    configurado = True
-    def __init__(self): self.atual = None
-    def responder(self, pergunta, opcoes):
-        texto = "ABCD"[self.atual[2].index(self.atual[1])]
-        l = novo.extrair_letra(texto, opcoes)
-        return (opcoes["ABCD".index(l)], True) if l and opcoes["ABCD".index(l)] else (texto, False)
-
 def pipeline_antigo(caso, acerto_banco):
     """Same steps as OpenOCR.responde(), minus Tk and Gemini network."""
     TELA["img"] = tela(caso[0], caso[2])
@@ -188,25 +178,32 @@ def pipeline_antigo(caso, acerto_banco):
 base_vazia = [base[0]]
 (S / "tmp_vazio.csv").write_text("question,response\n", encoding="utf-8")
 
+from openrok.banco import mapear_resposta  # noqa: E402
+from openrok.geometria import Ret, areas_para  # noqa: E402
+
+GEO = areas_para(Ret(0, 0, 1920, 1080))
+ENV = GEO.envoltorio()
+
 t0 = time.perf_counter()
-p_banco = novo.Pesquisa.__new__(novo.Pesquisa)
-p_banco.idioma = "en"; p_banco.banco = novo.BancoPerguntas(CSV_ANTIGO); p_banco.ocr = novo.MotorOCR("eng")
+motor = novo.MotorOCR("eng")
 inicializacao_ocr = time.perf_counter() - t0
-fg = FakeGemini()
-p_banco.gemini = fg; p_banco.banco.salvar = lambda *a: True
-p_miss = novo.Pesquisa.__new__(novo.Pesquisa)
-p_miss.idioma = "en"; p_miss.ocr = p_banco.ocr; p_miss.gemini = fg
+banco_cheio = novo.BancoPerguntas(CSV_ANTIGO)
+banco_vazio = novo.BancoPerguntas(S / "tmp_vazio.csv")
+
 
 def pipeline_novo(caso, acerto_banco):
+    """The watcher's path: one capture, question + options read in parallel, lookup, answer -> letter."""
     TELA["img"] = tela(caso[0], caso[2])
-    if not acerto_banco:
-        p_miss.banco = novo.BancoPerguntas(S / "tmp_vazio.csv")
-        p_miss.banco.salvar = lambda *a: True
-    fg.atual = caso
-    p = p_banco if acerto_banco else p_miss
+    banco_atual = banco_cheio if acerto_banco else banco_vazio
     t0 = time.perf_counter()
-    r = p.executar(AREAS)
-    return time.perf_counter() - t0, r.get("resposta")
+    imagem = ImageGrab.grab(bbox=(ENV.x, ENV.y, ENV.x + ENV.w, ENV.y + ENV.h))
+    texto, opcoes = motor.ler_tudo(GEO.pergunta.recortar(imagem, ENV),
+                                   [GEO.texto_opcao(letra).recortar(imagem, ENV) for letra in "ABCD"])
+    achada = banco_atual.buscar(texto)
+    letra = mapear_resposta(achada[1], opcoes) if achada else None
+    if letra is None:
+        letra = "ABCD"[caso[2].index(caso[1])]  # simulated AI picks the right option, no network
+    return time.perf_counter() - t0, opcoes["ABCD".index(letra)]
 
 for rotulo, hit in (("pergunta_no_banco", True), ("pergunta_nova (OCR das 4 opcoes, Gemini simulado)", False)):
     res = {}

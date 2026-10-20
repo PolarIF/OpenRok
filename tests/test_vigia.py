@@ -310,3 +310,11 @@ def test_geometria_do_ultimo_ciclo(ocr, conhecimento):
 
     rodar(vigia, captura, carregar_print("q1_go"))
     assert vigia.geometria == (TELA, AREAS)
+
+
+def test_vigia_usa_calibracao(ocr, conhecimento):
+    vigia, captura, _, _ = montar(ocr, conhecimento)
+    vigia.calibracao = [0, 0, 1798 / 1920, 316 / 1080]
+
+    rodar(vigia, captura, carregar_print("q1_go"))
+    assert vigia.geometria[1] == areas_para(TELA, vigia.calibracao)
