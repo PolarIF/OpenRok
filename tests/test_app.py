@@ -78,3 +78,21 @@ def test_mover_painel_salva_config(montar):
     app = montar()
     app.painel.movido.emit(0.3, 0.1)
     assert app.config.painel_posicao == [0.3, 0.1]
+
+
+def test_modo_sem_banco(qtbot, tmp_path):
+    armazem_real = Armazem(":memory:")
+    app = Aplicacao(Config(idioma="pt"), JanelaFixa(Ret(0, 0, 1920, 1080)),
+                    CapturaDeQuadro(carregar_print("q1_go")), armazem_real,
+                    tmp_path / "config.json", lambda idioma: None, sem_banco=True)
+    app.iniciar()
+    qtbot.addWidget(app.janela)
+    qtbot.addWidget(app.overlay)
+    qtbot.addWidget(app.painel)
+
+    try:
+        assert len(app.conhecimento) == 0
+        qtbot.waitUntil(lambda: app.janela.inicio.resposta.text() == "Fora do banco", timeout=8000)
+        assert app.conhecimento.armazem is not armazem_real
+    finally:
+        app.encerrar()
