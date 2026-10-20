@@ -302,3 +302,11 @@ def test_alternar_janela_no_verde_nao_aprende_duas_vezes(ocr, conhecimento):
 
     assert tipos(eventos).count(Aprendido) == 1
     assert tipos(eventos).count(Resultado) == 1
+
+
+def test_geometria_do_ultimo_ciclo(ocr, conhecimento):
+    vigia, captura, _, _ = montar(ocr, conhecimento)
+    assert vigia.geometria is None
+
+    rodar(vigia, captura, carregar_print("q1_go"))
+    assert vigia.geometria == (TELA, AREAS)

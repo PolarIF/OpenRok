@@ -25,6 +25,8 @@ IDIOMAS = {
             "fonte_ia_nao_validada": "Source: Gemini (could not match an option, not saved)",
             "sem_chave": "Question not in database and GEMINI_API_KEY is not set.",
             "erro_ia": "Gemini error: {erro}",
+            "selo_banco": "✓ database · {tempo} s",
+            "selo_ia": "AI · suggestion · {tempo} s",
         },
         "prompt": (
             "This is a multiple-choice question from the Lyceum of Wisdom event "
@@ -50,6 +52,8 @@ IDIOMAS = {
             "fonte_ia_nao_validada": "Fonte: Gemini (não bateu com nenhuma opção, não salvo)",
             "sem_chave": "Pergunta fora do banco e GEMINI_API_KEY não está definida.",
             "erro_ia": "Erro no Gemini: {erro}",
+            "selo_banco": "✓ banco · {tempo} s",
+            "selo_ia": "IA · sugestão · {tempo} s",
         },
         "prompt": (
             "Esta é uma pergunta de múltipla escolha do evento Liceu da Sabedoria "
