@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -27,6 +28,11 @@ from openrok.tela import LIMITE_MESMA, EstadoOpcao, distancia, eh_tela_de_pergun
 # ==========================================================
 
 
+registro = logging.getLogger("openrok.vigia")
+
+LETRA_COR = {EstadoOpcao.NEUTRA: "n", EstadoOpcao.VERDE: "G", EstadoOpcao.VERMELHA: "R", EstadoOpcao.COLORIDA: "c"}
+
+
 class Estado(Enum):
     AGUARDANDO_JOGO = "aguardando_jogo"
     OUTRA_TELA = "outra_tela"
@@ -54,6 +60,7 @@ class Vigia:
         self.estado = Estado.AGUARDANDO_JOGO
         self.geometria = None  # (game client, areas) of the last cycle with the game in front
         self.calibracao = None  # user-calibrated area, see geometria.areas_para
+        self._ultimas_cores = None
         self._esquecer_pergunta()
         self._numero = 0  # identifies the current question for late AI replies
 
@@ -75,8 +82,10 @@ class Vigia:
         self.emitir(evento)
 
     def _mudar(self, estado, evento=None):
-        if self.estado != estado and evento is not None:
-            self.emitir(evento)
+        if self.estado != estado:
+            registro.debug("estado %s -> %s", self.estado, estado)
+            if evento is not None:
+                self.emitir(evento)
         self.estado = estado
 
     # ------------------------------------------------------
@@ -95,6 +104,7 @@ class Vigia:
             return
 
         if self.estado == Estado.AGUARDANDO_JOGO:
+            registro.debug("jogo encontrado em %s", cliente)
             self.emitir(JogoEncontrado())
             self.estado = None  # game found, screen not identified yet
 
@@ -113,12 +123,19 @@ class Vigia:
             for letra in LETRAS
         }
 
+        resumo = "".join(LETRA_COR[e] for e in estados.values())  # e.g. "nnRG": C red, D green
+        if resumo != self._ultimas_cores:
+            registro.debug("cores das opções %s (estado %s)", resumo, self.estado)
+            self._ultimas_cores = resumo
+
         verdes = [letra for letra, e in estados.items() if e == EstadoOpcao.VERDE]
         if verdes:
             self._resultado(verdes[0], estados)
             return
 
         if EstadoOpcao.COLORIDA in estados.values():
+            if self.estado != Estado.RESPONDIDA:
+                registro.debug("respondida: %s", {k: v.value for k, v in estados.items()})
             self._mudar(Estado.RESPONDIDA, Respondida())
             return
 
@@ -143,21 +160,32 @@ class Vigia:
     def _resultado(self, correta, estados):
         self.estado = Estado.RESULTADO
 
-        if self._resultado_visto or self._atual is None:
+        if self._resultado_visto:
+            return
+        if self._atual is None:
+            registro.info("resultado sem pergunta resolvida (verde em %s): nada a aprender", correta)
+            self._resultado_visto = True
             return
         self._resultado_visto = True
 
         vermelhas = [letra for letra, e in estados.items() if e == EstadoOpcao.VERMELHA]
-        self.emitir(Resultado(correta, vermelhas[0] if vermelhas else correta))
+        marcada = vermelhas[0] if vermelhas else correta
+        registro.info("resultado correta=%s marcada=%s estados=%s", correta, marcada,
+                      {k: v.value for k, v in estados.items()})
+        self.emitir(Resultado(correta, marcada))
 
         if not self._opcoes or not self._opcoes[LETRAS.index(correta)]:
+            registro.info("opção %s sem texto lido (%r): nada a aprender", correta, self._opcoes)
             return
 
         try:
             tipo = self.conhecimento.aprender(self._texto, self._opcoes, correta, self._atual)
         except Exception:
             # Learning is a bonus: a locked or full database must never stop the watcher
+            registro.exception("falha ao aprender %r", self._texto)
             return
+
+        registro.info("aprendido (%s): %r -> %r", tipo, self._texto, self._opcoes[LETRAS.index(correta)])
 
         self.emitir(Aprendido(tipo))
 
@@ -191,6 +219,7 @@ class Vigia:
             origem = "banco"
 
         self._texto, self._opcoes = texto, opcoes
+        registro.info("pergunta (%s): %r opções=%r resposta=%r", origem, texto, opcoes, resposta)
         self._emitir_da_pergunta(PerguntaDetectada(pergunta, opcoes))
 
         letra = mapear_resposta(resposta, opcoes) if resposta else None
@@ -234,7 +263,7 @@ class Vigia:
                 try:
                     self.ciclo()
                 except Exception:
-                    pass  # a bad frame must not kill the watcher
+                    registro.exception("erro no ciclo")  # a bad frame must not kill the watcher
                 self._parar.wait(max(0.0, intervalo - (time.perf_counter() - inicio)))
 
         self._thread = threading.Thread(target=laco, daemon=True)
