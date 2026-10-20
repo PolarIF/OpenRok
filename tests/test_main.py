@@ -1,13 +1,13 @@
 import csv
-import sys
-from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-import main  # noqa: E402
-from main import BancoPerguntas, Pesquisa, extrair_letra, normalizar  # noqa: E402
+from openrok.banco import BancoPerguntas
+from openrok.caminhos import pasta_base
+from openrok.ia import Gemini, extrair_letra
+from openrok.idiomas import IDIOMAS
+from openrok.texto import normalizar
+from main import Pesquisa
 
 
 def criar_csv(caminho, linhas, cabecalho=("question", "response")):
@@ -184,24 +184,24 @@ def test_sem_chave_nao_tenta_gemini(banco, monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
 
-    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", main.Gemini("en"))
+    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", Gemini("en"))
     resultado = p.executar(None, IMAGENS)
 
-    assert resultado["erro"] == main.IDIOMAS["en"]["textos"]["sem_chave"]
+    assert resultado["erro"] == IDIOMAS["en"]["textos"]["sem_chave"]
 
 
 def test_sem_texto(banco):
     resultado = pesquisa(banco, "", GeminiFalso("A")).executar(None, IMAGENS)
-    assert resultado["erro"] == main.IDIOMAS["en"]["textos"]["sem_texto"]
+    assert resultado["erro"] == IDIOMAS["en"]["textos"]["sem_texto"]
 
 
 # ----------------------------------------------------------
 # Real data files
 # ----------------------------------------------------------
 
-@pytest.mark.parametrize("idioma", list(main.IDIOMAS))
+@pytest.mark.parametrize("idioma", list(IDIOMAS))
 def test_bancos_reais_carregam(idioma):
-    banco = BancoPerguntas(Path(main.__file__).parent / "data" / main.IDIOMAS[idioma]["csv"])
+    banco = BancoPerguntas(pasta_base() / "data" / IDIOMAS[idioma]["csv"])
     assert len(banco) > 1200
     pergunta = banco.perguntas[0]
     assert banco.buscar(pergunta)[1] == banco.respostas[0]

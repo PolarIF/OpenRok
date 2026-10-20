@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('data', 'data')],
+    datas=[('data', 'data'), ('openrok/tessdata', 'openrok/tessdata')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
