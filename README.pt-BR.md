@@ -106,7 +106,9 @@ O executável (`dist/OpenRok.exe`) leva uma cópia dos bancos e os extrai para u
 ### Testes
 
 ```bash
-pytest
+pytest                       # testes unitários + replay de um vídeo real do jogo
+python -m bench.replay       # o que o vigia faz com o vídeo e quanto tempo cada resposta levou
+python -m bench.comparar_v1  # benchmark de antes e depois contra a primeira versão
 ```
 
 ---

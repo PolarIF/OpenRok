@@ -1,5 +1,5 @@
 from openrok.banco import BancoPerguntas
-from openrok.tela import distancia
+from openrok.tela import LIMITE_MESMA, distancia
 
 
 # ==========================================================
@@ -8,9 +8,6 @@ from openrok.tela import distancia
 # Base CSV + what the user learned (the user wins), plus the
 # image fingerprints of questions confirmed by the game.
 # ==========================================================
-
-DISTANCIA_CACHE = 4
-
 
 class Conhecimento:
 
@@ -33,7 +30,7 @@ class Conhecimento:
     def por_hash(self, hash_img):
         melhor = min(self._hashes, key=lambda item: distancia(item[0], hash_img), default=None)
 
-        if melhor is None or distancia(melhor[0], hash_img) > DISTANCIA_CACHE:
+        if melhor is None or distancia(melhor[0], hash_img) > LIMITE_MESMA:
             return None
 
         return melhor[1], melhor[2]

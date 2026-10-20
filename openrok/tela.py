@@ -64,15 +64,27 @@ def eh_tela_de_perguntas(sondas):
 # ==========================================================
 # QUESTION FINGERPRINT
 # ==========================================================
-# 64-bit difference hash: survives compression and small
-# rendering differences, changes completely with the text.
+# Where the text ink is, on a 96x12 grid (adaptive threshold,
+# so lighting and compression don't matter), compared with
+# the Jaccard distance: changed cells / cells with ink.
+# Measured on the real video: the same question stays under
+# 0.026, different questions start at 0.127. A 64-bit dHash
+# could not tell two one-line questions apart.
 # ==========================================================
 
-def dhash(imagem):
-    pequena = np.asarray(imagem.convert("L").resize((9, 8)), dtype=np.int16)
-    bits = (pequena[:, 1:] > pequena[:, :-1]).flatten()
-    return int("".join("1" if b else "0" for b in bits), 2)
+GRADE = (96, 12)
+LIMITE_MESMA = 0.06
+
+
+def impressao(imagem):
+    cinza = np.asarray(imagem.convert("L"), dtype=np.uint8)
+    tinta = cv2.adaptiveThreshold(cinza, 1, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY_INV, 31, 15)
+    grade = cv2.resize(tinta.astype(np.float32), GRADE, interpolation=cv2.INTER_AREA)
+    return np.packbits(grade.flatten() > 0.12).tobytes()
 
 
 def distancia(a, b):
-    return (a ^ b).bit_count()
+    bits_a = np.unpackbits(np.frombuffer(a, dtype=np.uint8))
+    bits_b = np.unpackbits(np.frombuffer(b, dtype=np.uint8))
+    tinta = np.count_nonzero(bits_a | bits_b)
+    return np.count_nonzero(bits_a ^ bits_b) / tinta if tinta else 0.0

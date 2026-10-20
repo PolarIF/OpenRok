@@ -4,8 +4,8 @@ import pytest
 from PIL import Image
 
 from openrok.geometria import Ret, areas_para
-from openrok.tela import EstadoOpcao, distancia, dhash, eh_tela_de_perguntas, estado_opcao
-from tests.fixtures import carregar_print
+from openrok.tela import LIMITE_MESMA, EstadoOpcao, distancia, eh_tela_de_perguntas, estado_opcao, impressao
+from tests.fixtures import carregar_print, quadros_video
 
 AREAS = areas_para(Ret(0, 0, 1920, 1080))
 TELA = Ret(0, 0, 1920, 1080)
@@ -39,15 +39,24 @@ def test_assinatura_rejeita_outra_tela():
     assert not eh_tela_de_perguntas([s.recortar(imagem, TELA) for s in AREAS.sondas])
 
 
-def test_dhash_estavel():
+def test_impressao_estavel_com_compressao():
     pergunta = AREAS.pergunta.recortar(carregar_print("q1_go"), TELA)
 
     buffer = io.BytesIO()
     pergunta.save(buffer, "JPEG", quality=70)
     comprimida = Image.open(io.BytesIO(buffer.getvalue()))
 
-    outra = AREAS.pergunta.recortar(carregar_print("q4_einstein"), TELA)
+    assert distancia(impressao(pergunta), impressao(comprimida)) <= LIMITE_MESMA
+    assert isinstance(impressao(pergunta), bytes)
 
-    assert distancia(dhash(pergunta), dhash(comprimida)) <= 4
-    assert distancia(dhash(pergunta), dhash(outra)) > 6
-    assert 0 <= dhash(pergunta) < 2 ** 64
+
+def test_impressao_separa_perguntas_parecidas_do_video():
+    # Q1 (Saladino) and Q3 (Shakespeare) are both one-line questions of similar
+    # length: a 64-bit dHash put them 2 bits apart and mixed up their answers
+    quadros = list(quadros_video())
+    q1 = [impressao(AREAS.pergunta.recortar(q, TELA)) for t, q in quadros if 0.5 <= t <= 3.0]
+    q3 = [impressao(AREAS.pergunta.recortar(q, TELA)) for t, q in quadros if 11.2 <= t <= 11.9]
+
+    assert max(distancia(a, b) for a in q1 for b in q1) <= LIMITE_MESMA
+    assert max(distancia(a, b) for a in q3 for b in q3) <= LIMITE_MESMA
+    assert min(distancia(a, b) for a in q1 for b in q3) > 1.5 * LIMITE_MESMA

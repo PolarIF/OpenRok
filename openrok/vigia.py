@@ -9,7 +9,7 @@ from openrok.eventos import (Aprendido, ErroIA, JogoEncontrado, JogoPerdido, Out
                              Resultado, SemResposta, Sugestao)
 from openrok.geometria import areas_para
 from openrok.idiomas import LETRAS
-from openrok.tela import EstadoOpcao, dhash, distancia, eh_tela_de_perguntas, estado_opcao
+from openrok.tela import LIMITE_MESMA, EstadoOpcao, distancia, eh_tela_de_perguntas, estado_opcao, impressao
 
 
 # ==========================================================
@@ -25,8 +25,6 @@ from openrok.tela import EstadoOpcao, dhash, distancia, eh_tela_de_perguntas, es
 # from the current one and holds still for 2 cycles (ignores
 # the transition animation).
 # ==========================================================
-
-DISTANCIA_NOVA = 6
 
 
 class Estado(Enum):
@@ -113,12 +111,12 @@ class Vigia:
             self._mudar(Estado.RESPONDIDA, Respondida())
             return
 
-        h = dhash(areas.pergunta.recortar(imagem, envoltorio))
+        h = impressao(areas.pergunta.recortar(imagem, envoltorio))
 
-        if self._atual is not None and distancia(h, self._atual) <= DISTANCIA_NOVA:
+        if self._atual is not None and distancia(h, self._atual) <= LIMITE_MESMA:
             return
 
-        if self._candidato is not None and distancia(h, self._candidato) <= DISTANCIA_NOVA:
+        if self._candidato is not None and distancia(h, self._candidato) <= LIMITE_MESMA:
             self._resolver(h, areas, imagem, envoltorio, inicio)
         else:
             self._candidato = h
@@ -164,7 +162,13 @@ class Vigia:
             pergunta, resposta = do_cache
             opcoes = self.ocr.ler_opcoes(imagens_opcoes)
             texto, origem = pergunta, "cache"
-        else:
+
+            # A cached answer that is not among the options means the
+            # fingerprint matched the wrong question: read it properly
+            if mapear_resposta(resposta, opcoes) is None:
+                do_cache = None
+
+        if not do_cache:
             texto, opcoes = self.ocr.ler_tudo(areas.pergunta.recortar(imagem, envoltorio), imagens_opcoes)
             encontrada = self.conhecimento.buscar(texto)
             pergunta = encontrada[0] if encontrada else " ".join(texto.split())

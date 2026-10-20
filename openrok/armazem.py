@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS correcoes (
     em TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS cache_imagem (
-    hash INTEGER NOT NULL,
+    hash BLOB NOT NULL,
     idioma TEXT NOT NULL,
     pergunta_id INTEGER NOT NULL REFERENCES perguntas(id),
     PRIMARY KEY (hash, idioma)
@@ -46,15 +46,6 @@ CREATE TABLE IF NOT EXISTS cache_imagem (
 
 def _agora():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-# SQLite integers are signed 64-bit; image hashes are unsigned
-def _com_sinal(h):
-    return h - 2 ** 64 if h >= 2 ** 63 else h
-
-
-def _sem_sinal(h):
-    return h + 2 ** 64 if h < 0 else h
 
 
 class Armazem:
@@ -105,7 +96,7 @@ class Armazem:
             if hash_img is not None:
                 self._conexao.execute(
                     "INSERT OR REPLACE INTO cache_imagem (hash, idioma, pergunta_id) VALUES (?, ?, ?)",
-                    (_com_sinal(hash_img), idioma, pergunta_id)
+                    (hash_img, idioma, pergunta_id)
                 )
 
         return tipo
@@ -137,4 +128,4 @@ class Armazem:
                    JOIN perguntas p ON p.id = c.pergunta_id WHERE c.idioma = ?""",
                 (idioma,)
             ).fetchall()
-        return [(_sem_sinal(h), pergunta, resposta) for h, pergunta, resposta in linhas]
+        return [(bytes(h), pergunta, resposta) for h, pergunta, resposta in linhas]

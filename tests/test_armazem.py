@@ -35,11 +35,11 @@ def test_desfazer():
     assert armazem.desfazer_ultima_correcao("en") is None
 
 
-def test_hash_64_bits():
+def test_impressao_guardada_como_bytes():
     armazem = Armazem(":memory:")
-    armazem.aprender("en", PERGUNTA, "Lungs", None, 2 ** 64 - 1)
+    armazem.aprender("en", PERGUNTA, "Lungs", None, b"\xff" * 144)
 
-    assert armazem.hashes("en") == [(2 ** 64 - 1, PERGUNTA, "Lungs")]
+    assert armazem.hashes("en") == [(b"\xff" * 144, PERGUNTA, "Lungs")]
 
 
 def test_conhecimento_usuario_vence(tmp_path):
@@ -66,17 +66,19 @@ def test_aprender_usa_pergunta_canonica(tmp_path):
 def test_por_hash(tmp_path):
     caminho = criar_csv(tmp_path / "db.csv", [])
     conhecimento = Conhecimento("en", caminho, Armazem(":memory:"))
-    h = 0x0123456789ABCDEF
+    h = bytes([0b11110000] * 10) + bytes(134)  # 40 text cells
+    perto = bytes([0b11110000] * 9 + [0b11110001]) + bytes(134)  # 1/41 apart
+    longe = bytes([0b11110000] * 8 + [0b00001111] * 2) + bytes(134)  # 16/48 apart
 
     assert conhecimento.aprender(PERGUNTA, "Lungs", h) == "nova"
-    assert conhecimento.por_hash(h ^ 0b1011) == (PERGUNTA, "Lungs")
-    assert conhecimento.por_hash(h ^ 0b11111) is None
+    assert conhecimento.por_hash(perto) == (PERGUNTA, "Lungs")
+    assert conhecimento.por_hash(longe) is None
 
 
 def test_persistencia_em_arquivo(tmp_path):
     caminho = tmp_path / "openrok.db"
-    Armazem(caminho).aprender("pt", "Quem pintou a Mona Lisa?", "Leonardo da Vinci", None, 42)
+    Armazem(caminho).aprender("pt", "Quem pintou a Mona Lisa?", "Leonardo da Vinci", None, b"\x01\x02")
 
     reaberto = Armazem(caminho)
     assert reaberto.perguntas("pt") == [("Quem pintou a Mona Lisa?", "Leonardo da Vinci")]
-    assert reaberto.hashes("pt") == [(42, "Quem pintou a Mona Lisa?", "Leonardo da Vinci")]
+    assert reaberto.hashes("pt") == [(b"\x01\x02", "Quem pintou a Mona Lisa?", "Leonardo da Vinci")]

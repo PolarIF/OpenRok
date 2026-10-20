@@ -106,7 +106,9 @@ The executable (`dist/OpenRok.exe`) carries a copy of the databases and extracts
 ### Tests
 
 ```bash
-pytest
+pytest                       # unit tests + replay of a real game video
+python -m bench.replay       # what the watcher does with the video, and how long each answer took
+python -m bench.comparar_v1  # before/after benchmark against the first version
 ```
 
 ---

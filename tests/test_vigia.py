@@ -235,3 +235,13 @@ def test_opcao_verde_vazia(conhecimento):
 
     assert Resultado("D", "A") in eventos
     assert Aprendido not in tipos(eventos)
+
+
+def test_cache_errado_cai_para_o_banco(ocr, conhecimento):
+    conhecimento.por_hash = lambda h: ("Pergunta parecida de outra rodada?", "1192")
+
+    vigia, captura, _, eventos = montar(ocr, conhecimento)
+    rodar(vigia, captura, carregar_print("q1_go"), ciclos=2)
+
+    assert "Go" in eventos[-2].texto
+    assert (eventos[-1].letra, eventos[-1].origem) == ("A", "banco")
