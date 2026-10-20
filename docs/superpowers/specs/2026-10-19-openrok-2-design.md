@@ -93,7 +93,7 @@ tests/                 # unitários + fixtures reais + replay do vídeo
 
 ## 5. Fluxo do vigia
 
-O vigia roda numa thread a ~15 Hz. Cada ciclo custa ~2 ms quando nada mudou: captura de 0,3 ms mais um hash de ~1 ms.
+O vigia roda numa thread a ~15 Hz. Cada ciclo custa ~2 ms quando nada mudou: captura de 0,3 ms mais a impressão da pergunta, de ~0,5 ms.
 
 ```
 AGUARDANDO_JOGO ──janela do jogo ativa──▶ OUTRA_TELA ──assinatura ok──▶ PERGUNTA
@@ -115,9 +115,9 @@ AGUARDANDO_JOGO ──janela do jogo ativa──▶ OUTRA_TELA ──assinatura 
    - *vermelho:* fração > 0,35.
    - *respondida/aguardando* (o azul do fim de semana): a caixa **não está bege** e **não está verde nem vermelha**, ou seja, fração de pixels fora da faixa do bege > 0,35. Não depende do tom exato do azul. Quando chegar o print do estado azul, ele vira um teste de confirmação.
    - *eliminada* (Lampejo): caixa sem texto e com contraste baixo; essa opção fica de fora.
-5. **Pergunta nova.** Todas as opções neutras e o dHash de 64 bits da área da pergunta mudou (distância de Hamming > 6). Exige **o mesmo hash em 2 ciclos seguidos** (~66 ms) para ignorar a animação de troca.
+5. **Pergunta nova.** Todas as opções neutras e a **impressão da pergunta** mudou: máscara da tinta do texto numa grade 96×12, comparada por distância de Jaccard, com limite **0,06**. No vídeo real, a mesma pergunta fica em ≤ 0,026 e perguntas diferentes em ≥ 0,115; um dHash de 64 bits não separava perguntas de uma linha parecidas. Exige **a mesma impressão em 2 ciclos seguidos** (~66 ms) para ignorar a animação de troca.
 6. **Resolver a pergunta**, nesta ordem, parando no primeiro que responder:
-   1. **Cache de imagem:** hash a distância ≤ 4 de um hash confirmado.
+   1. **Cache de imagem:** impressão a distância ≤ 0,06 de uma confirmada. Se a resposta guardada não estiver entre as opções lidas, o cache é ignorado e segue para o banco.
    2. **Banco:** OCR da pergunta e das 4 opções em paralelo, busca no banco e mapeamento da resposta para uma letra (§7).
    3. **IA:** chamada assíncrona. O loop do vigia continua rodando durante a espera, e a sugestão é descartada se a pergunta mudar antes de a resposta chegar.
 7. **Resultado.** Na primeira leitura de verde para a pergunta atual, chama `aprender()` (§8) uma única vez e esconde o overlay.
@@ -161,7 +161,7 @@ perguntas(id INTEGER PRIMARY KEY, idioma TEXT, pergunta TEXT, normalizada TEXT,
           UNIQUE(idioma, normalizada))
 correcoes(id INTEGER PRIMARY KEY, pergunta_id INTEGER, resposta_antiga TEXT,
           resposta_nova TEXT, em TEXT)
-cache_imagem(hash INTEGER, idioma TEXT, pergunta_id INTEGER, PRIMARY KEY(hash, idioma))
+cache_imagem(hash BLOB, idioma TEXT, pergunta_id INTEGER, PRIMARY KEY(hash, idioma))
 ```
 
 - **Ao carregar:** base CSV mais as linhas do usuário. Para a mesma pergunta normalizada, **a do usuário vence**.
