@@ -41,3 +41,15 @@ def test_recortar_relativo_a_origem():
 
     assert recorte.size == (10, 10)
     assert recorte.getpixel((5, 5)) == (255, 0, 0)
+
+
+def test_calibracao_identidade():
+    calibracao = [592 / 1920, 335 / 1080, 899 / 1920, 316 / 1080]
+    assert areas_para(Ret(0, 0, 1920, 1080), calibracao) == areas_para(Ret(0, 0, 1920, 1080))
+
+
+def test_calibracao_esticada():
+    areas = areas_para(Ret(0, 0, 1920, 1080), [0, 0, 1798 / 1920, 316 / 1080])
+
+    assert areas.caixas["B"].x == 2 * (1053 - 592)
+    assert areas.caixas["B"].y == 471 - 335
