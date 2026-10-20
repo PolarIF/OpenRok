@@ -232,7 +232,17 @@ O marco 4 começa com um **teste de viabilidade**, com o jogo aberto pelo instal
 2. A captura do retângulo traz o conteúdo do jogo? Testar `mss` na raiz e, se vier preto, `XGetImage` direto na janela do jogo.
 3. O overlay Qt com `xcb` fica acima do jogo e deixa o clique passar no KWin?
 
-Se as três passarem, o código do Windows serve para o Linux com as implementações X11 de `janela_jogo`. **Plano B**, se a 2 ou a 3 falhar: captura pelo portal `org.freedesktop.portal.ScreenCast` (PipeWire) e overlay por `layer-shell` (LayerShellQt). Nesse caso o marco 4 é re-especificado antes de implementar.
+Se as três passarem, o código do Windows serve para o Linux com as implementações X11 de `janela_jogo`.
+
+**Resultado do teste de viabilidade (2026-10-19, KDE Plasma 6 Wayland, escala 125%, jogo pelo instalador do Wine):**
+
+| Pergunta | Resultado |
+|---|---|
+| 1. Janela | ✅ `_NET_CLIENT_LIST` traz `WM_NAME = "Rise of Kingdoms"` (`WM_CLASS mass.exe`). `_NET_ACTIVE_WINDOW` passa a ser o id do jogo quando ele está em foco. |
+| 2. Captura | ✅ `XGetImage` **direto na janela do jogo**, em 6 ms na área do vigia. ❌ `mss` na raiz devolve preto no XWayland, então a captura no Linux é por janela. |
+| 3. Overlay | ✅ Qt com `xcb`, `WindowTransparentForInput` e `X11BypassWindowManagerHint`: fica acima do jogo e o clique atravessa. |
+
+**Escala de tela:** o X11 (e o Win32 com DPI awareness) informa pixels físicos, enquanto o Qt posiciona janelas em pixels lógicos. O overlay divide a geometria pelo `devicePixelRatio` da tela e desenha com `QPainter.scale(1/dpr)`. Sem isso, com 125% de escala, o contorno sai deslocado. **Plano B**, se a 2 ou a 3 falhar: captura pelo portal `org.freedesktop.portal.ScreenCast` (PipeWire) e overlay por `layer-shell` (LayerShellQt). Nesse caso o marco 4 é re-especificado antes de implementar.
 
 ## 13. Empacotamento
 
@@ -271,7 +281,7 @@ Cada marco tem seu próprio plano de implementação.
 | # | Marco | Pronto quando |
 |---|---|---|
 | 1 | **Motor sem interface:** pacote `openrok/`, `tela`, `geometria`, OCR das opções, `banco` com SQLite e cache, `vigia` | Replay do vídeo passa; OCR das opções passa nas fixtures; metas de tempo do §1 atingidas no replay |
-| 2 | **Interface Qt e overlay (Windows)** | Abas Início, Banco e Ajustes funcionando; overlay excluído da captura; rodando de ponta a ponta no Windows |
+| 2 | **Interface Qt e overlay (Linux validado; código do Windows escrito)** | Abas Início, Banco e Ajustes funcionando; overlay; rodando de ponta a ponta no Linux com o jogo. O Windows é validado quando houver uma máquina para testar. |
 | 3 | **IA de qualquer provedor** | Presets, aba IA com Testar, chave no cofre, erros mapeados, testes com `MockTransport` |
 | 4 | **Linux** | Teste de viabilidade registrado; app funcionando no KDE Wayland com o jogo no Wine |
 | 5 | **Empacotamento** | ZIP do Windows e tar do Linux abrindo numa máquina limpa, sem Python nem Tesseract instalados; READMEs atualizados |
