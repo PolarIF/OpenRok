@@ -41,3 +41,21 @@ class CapturaDeQuadro:
 
     def capturar(self, ret):
         return self.quadro.crop((ret.x, ret.y, ret.x + ret.w, ret.y + ret.h))
+
+
+class CapturaX11:
+    """Reads the game window's own pixels (XGetImage).
+
+    On XWayland a capture of the root window comes back black, but each X11
+    window still has its content: ~6 ms for the watcher's area.
+    """
+
+    def __init__(self, janela):
+        self.janela = janela
+
+    def capturar(self, ret):
+        from Xlib import X
+
+        x0, y0 = self.janela.origem or (0, 0)
+        bruto = self.janela.janela().get_image(ret.x - x0, ret.y - y0, ret.w, ret.h, X.ZPixmap, 0xFFFFFFFF)
+        return Image.frombytes("RGB", (ret.w, ret.h), bruto.data, "raw", "BGRX")
