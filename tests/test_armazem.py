@@ -100,3 +100,78 @@ def test_pergunta_nova_guarda_texto_da_opcao(tmp_path):
 
     assert conhecimento.aprender(PERGUNTA, ["Heart", "Lungs\nand trachea", "", ""], "B", None) == "nova"
     assert conhecimento.buscar(PERGUNTA)[1] == "Lungs and trachea"
+
+
+# ----------------------------------------------------------
+# Database tab support
+# ----------------------------------------------------------
+
+def conhecimento_com_historia(tmp_path):
+    caminho = criar_csv(tmp_path / "db.csv", [
+        ("Antes de liderar a maior rebelião, o que foi Espártaco?", "Um gladiador"),
+        ("Qual orgao faz parte do sistema respiratorio humano?", "chave de impacto"),
+        ("Quem pintou a Mona Lisa original?", "Leonardo da Vinci"),
+    ])
+    conhecimento = Conhecimento("pt", caminho, Armazem(":memory:"))
+    conhecimento.aprender("Antes de liderar a maior rebelião, o que foi Espártaco?",
+                          ["Um gladiador", "Um senador", "", ""], "A", None)
+    conhecimento.aprender("Qual orgao faz parte do sistema respiratorio humano?",
+                          ["Pulmões", "Fígado", "", ""], "A", None)
+    return conhecimento
+
+
+def test_listar_filtros(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+
+    assert len(conhecimento.listar(filtro="aprendidas")) == 2
+    corrigidas = conhecimento.listar(filtro="corrigidas")
+    assert [(c["resposta"], c["corrigida_de"]) for c in corrigidas] == [("Pulmões", "chave de impacto")]
+    assert [c["pergunta"] for c in conhecimento.listar(filtro="nao_confirmadas")] == ["Quem pintou a Mona Lisa original?"]
+    assert len(conhecimento.listar()) == 3
+
+
+def test_busca_sem_acento(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+    assert [c["resposta"] for c in conhecimento.listar("espartaco")] == ["Um gladiador"]
+    assert [c["resposta"] for c in conhecimento.listar("PULMOES")] == ["Pulmões"]
+
+
+def test_desfazer_atualiza_memoria(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+
+    assert conhecimento.desfazer_ultima_correcao() == ("Qual orgao faz parte do sistema respiratorio humano?",
+                                                       "chave de impacto")
+    assert conhecimento.buscar("Qual orgao faz parte do sistema respiratorio humano?")[1] == "chave de impacto"
+    assert conhecimento.desfazer_ultima_correcao() is None
+
+
+def test_exportar_confirmadas(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+    destino = tmp_path / "confirmadas.csv"
+
+    assert conhecimento.exportar_confirmadas(destino) == 2
+    with open(destino, encoding="utf-8", newline="") as file:
+        linhas = list(csv.reader(file))
+    assert linhas[0] == ["pergunta", "resposta"]
+    assert sorted(linhas[1:]) == sorted([["Antes de liderar a maior rebelião, o que foi Espártaco?", "Um gladiador"],
+                                         ["Qual orgao faz parte do sistema respiratorio humano?", "Pulmões"]])
+
+
+def test_importar_csv_tolerante(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+    origem = tmp_path / "amigo.csv"
+    origem.write_text("Q;A\n\nso uma coluna\nQuem descobriu o caminho maritimo para a India?,Vasco da Gama\n"
+                      "Em que ano caiu o Imperio Romano do Ocidente?,476\n", encoding="utf-8")
+
+    assert conhecimento.importar_csv(origem) == 2
+    assert conhecimento.buscar("Quem descobriu o caminho maritimo para a India?")[1] == "Vasco da Gama"
+    assert conhecimento.buscar("Em que ano caiu o Imperio Romano do Ocidente?")[1] == "476"
+
+
+def test_importar_nao_sobrescreve_o_que_o_jogo_confirmou(tmp_path):
+    conhecimento = conhecimento_com_historia(tmp_path)
+    origem = tmp_path / "amigo.csv"
+    origem.write_text('"Antes de liderar a maior rebelião, o que foi Espártaco?",Um rei\n', encoding="utf-8")
+
+    assert conhecimento.importar_csv(origem) == 0
+    assert conhecimento.buscar("Antes de liderar a maior rebelião, o que foi Espártaco?")[1] == "Um gladiador"

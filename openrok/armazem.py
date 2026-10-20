@@ -121,6 +121,47 @@ class Armazem:
 
         return pergunta, antiga
 
+    def listar(self, idioma):
+        with self._trava:
+            linhas = self._conexao.execute(
+                """SELECT p.pergunta, p.resposta, p.origem, p.confirmada, p.atualizada_em,
+                          (SELECT c.resposta_antiga FROM correcoes c WHERE c.pergunta_id = p.id
+                           ORDER BY c.id DESC LIMIT 1)
+                   FROM perguntas p WHERE p.idioma = ? ORDER BY p.id""",
+                (idioma,)
+            ).fetchall()
+
+        return [
+            {"pergunta": pergunta, "resposta": resposta, "origem": origem, "confirmada": bool(confirmada),
+             "corrigida_de": corrigida_de, "atualizada_em": atualizada_em}
+            for pergunta, resposta, origem, confirmada, atualizada_em, corrigida_de in linhas
+        ]
+
+    def importar(self, idioma, linhas):
+        """Adds unconfirmed answers; never touches what the game confirmed. Returns the rows taken."""
+        agora = _agora()
+        importadas = []
+
+        with self._trava, self._conexao:
+            for pergunta, resposta in linhas:
+                confirmada = self._conexao.execute(
+                    "SELECT 1 FROM perguntas WHERE idioma = ? AND normalizada = ? AND origem = 'jogo'",
+                    (idioma, normalizar(pergunta))
+                ).fetchone()
+                if confirmada:
+                    continue
+
+                self._conexao.execute(
+                    """INSERT INTO perguntas (idioma, pergunta, normalizada, resposta, origem, confirmada, criada_em, atualizada_em)
+                       VALUES (?, ?, ?, ?, 'base', 0, ?, ?)
+                       ON CONFLICT (idioma, normalizada) DO UPDATE SET
+                           resposta = excluded.resposta, atualizada_em = excluded.atualizada_em""",
+                    (idioma, pergunta, normalizar(pergunta), resposta, agora, agora)
+                )
+                importadas.append((pergunta, resposta))
+
+        return importadas
+
     def hashes(self, idioma):
         with self._trava:
             linhas = self._conexao.execute(

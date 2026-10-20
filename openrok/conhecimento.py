@@ -1,5 +1,8 @@
+import csv
+
 from openrok.banco import BancoPerguntas, mapear_resposta
 from openrok.idiomas import LETRAS
+from openrok.texto import normalizar
 from openrok.tela import LIMITE_MESMA, distancia
 
 
@@ -60,3 +63,65 @@ class Conhecimento:
             self._hashes.append((hash_img, pergunta, resposta))
 
         return tipo
+
+    # ------------------------------------------------------
+    # Database tab
+    # ------------------------------------------------------
+    def listar(self, busca="", filtro="todas"):
+        do_usuario = {normalizar(item["pergunta"]): item for item in self.armazem.listar(self.idioma)}
+        alvo = normalizar(busca)
+        itens = []
+
+        for pergunta, resposta in zip(self.banco.perguntas, self.banco.respostas):
+            item = do_usuario.get(normalizar(pergunta)) or {
+                "pergunta": pergunta, "resposta": resposta, "origem": "base", "confirmada": False,
+                "corrigida_de": None, "atualizada_em": None,
+            }
+
+            if alvo and alvo not in normalizar(item["pergunta"]) and alvo not in normalizar(item["resposta"]):
+                continue
+            if filtro == "aprendidas" and item["origem"] != "jogo":
+                continue
+            if filtro == "corrigidas" and item["corrigida_de"] is None:
+                continue
+            if filtro == "nao_confirmadas" and item["confirmada"]:
+                continue
+
+            itens.append(item)
+
+        return itens
+
+    def desfazer_ultima_correcao(self):
+        desfeita = self.armazem.desfazer_ultima_correcao(self.idioma)
+        if desfeita:
+            self.banco.definir(*desfeita)
+        return desfeita
+
+    def exportar_confirmadas(self, caminho):
+        confirmadas = [(i["pergunta"], i["resposta"]) for i in self.armazem.listar(self.idioma) if i["confirmada"]]
+        cabecalho = ["pergunta", "resposta"] if self.idioma == "pt" else ["question", "response"]
+
+        with open(caminho, "w", encoding="utf-8", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(cabecalho)
+            writer.writerows(confirmadas)
+
+        return len(confirmadas)
+
+    def importar_csv(self, caminho):
+        """Imports question,answer rows; skips headers, blank and malformed lines."""
+        validas = []
+
+        with open(caminho, encoding="utf-8-sig", newline="") as file:
+            for linha in csv.reader(file):
+                if len(linha) < 2:
+                    continue
+                pergunta, resposta = " ".join(linha[0].split()), " ".join(linha[1].split())
+                if len(normalizar(pergunta)) >= self.banco.tamanho_minimo and resposta:
+                    validas.append((pergunta, resposta))
+
+        importadas = self.armazem.importar(self.idioma, validas)
+        for pergunta, resposta in importadas:
+            self.banco.definir(pergunta, resposta)
+
+        return len(importadas)
