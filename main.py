@@ -77,7 +77,7 @@ class Pesquisa:
         if not self.gemini.configurado:
             return {"pergunta": texto_pergunta, "erro": textos["sem_chave"]}
 
-        opcoes = self.ocr.ler_varias([imagens[letra] for letra in LETRAS])
+        opcoes = self.ocr.ler_opcoes([imagens[letra] for letra in LETRAS])
 
         try:
             resposta, validada = self.gemini.responder(texto_pergunta, opcoes)

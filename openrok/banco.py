@@ -1,4 +1,5 @@
 import csv
+import re
 from pathlib import Path
 
 from rapidfuzz import fuzz, process
@@ -86,3 +87,32 @@ class BancoPerguntas:
             csv.writer(file).writerow([pergunta, resposta.strip()])
 
         return True
+
+
+# ==========================================================
+# ANSWER -> OPTION LETTER
+# ==========================================================
+# The overlay needs to know WHICH option holds the answer.
+# Numbers must match exactly ("1905" is not "1915"); text
+# tolerates OCR noise but must have a single best option.
+# ==========================================================
+
+def mapear_resposta(resposta, opcoes):
+    alvo = normalizar(resposta)
+    if not alvo:
+        return None
+
+    letras = [letra for letra, opcao in zip("ABCD", opcoes) if normalizar(opcao)]
+    textos = [normalizar(opcao) for opcao in opcoes if normalizar(opcao)]
+
+    if alvo.replace(" ", "").isdigit():
+        digitos = alvo.replace(" ", "")
+        iguais = [letra for letra, texto in zip(letras, textos) if digitos in re.findall(r"\d+", texto)]
+        return iguais[0] if len(iguais) == 1 else None
+
+    melhores = process.extract(alvo, textos, scorer=fuzz.ratio, score_cutoff=85, limit=2)
+
+    if not melhores or (len(melhores) == 2 and melhores[0][1] == melhores[1][1]):
+        return None
+
+    return letras[melhores[0][2]]

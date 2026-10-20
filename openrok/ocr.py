@@ -37,6 +37,24 @@ def preprocessar(imagem):
     return Image.fromarray(imagem_processada)
 
 
+def preprocessar_opcao(imagem):
+    """Options have light text on a colored box (beige, green, red, blue).
+
+    Plain grayscale + Otsu splits the parchment's lighting gradient
+    instead of the text and loses short answers like "2". "Whiteness"
+    (value minus saturation) is high only on the text, whatever the
+    box color, so Otsu on it isolates the text. Output: dark on light.
+    """
+    imagem = imagem.convert("RGB")
+    imagem = imagem.resize((imagem.width * 2, imagem.height * 2), Image.LANCZOS)
+
+    hsv = cv2.cvtColor(np.asarray(imagem), cv2.COLOR_RGB2HSV).astype(np.int16)
+    brancura = np.clip(hsv[..., 2] - hsv[..., 1], 0, 255).astype(np.uint8)
+
+    _, binaria = cv2.threshold(brancura, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    return Image.fromarray(binaria)
+
+
 def capturar_tela(areas):
     """Grabs the screen once and crops every area out of it."""
     x1 = min(x for x, y, w, h in areas.values())
@@ -78,8 +96,32 @@ class MotorOCR:
         finally:
             self._livres.put(api)
 
-    def ler_varias(self, imagens):
-        return list(self._executor.map(self.ler, imagens))
+    def ler_opcao(self, imagem):
+        # Options are short: a block first (they may wrap to two lines),
+        # then a single line, which is what finds lone numbers like "2"
+        api = self._livres.get()
+        try:
+            api.SetImage(preprocessar_opcao(imagem))
+
+            for modo in (tesserocr.PSM.SINGLE_BLOCK, tesserocr.PSM.SINGLE_LINE):
+                api.SetPageSegMode(modo)
+                texto = " ".join(api.GetUTF8Text().split())
+                if texto:
+                    return texto
+
+            return ""
+        finally:
+            api.SetPageSegMode(tesserocr.PSM.AUTO)
+            self._livres.put(api)
+
+    def ler_opcoes(self, imagens):
+        return list(self._executor.map(self.ler_opcao, imagens))
+
+    def ler_tudo(self, pergunta, opcoes):
+        """Reads the question and the options at the same time."""
+        futura = self._executor.submit(self.ler, pergunta)
+        lidas = self.ler_opcoes(opcoes)
+        return futura.result(), lidas
 
     def fechar(self):
         self._executor.shutdown(wait=False)

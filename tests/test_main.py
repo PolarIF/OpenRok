@@ -120,7 +120,7 @@ class OCRFalso:
     def ler(self, imagem):
         return self.textos[imagem]
 
-    def ler_varias(self, imagens):
+    def ler_opcoes(self, imagens):
         return [self.ler(imagem) for imagem in imagens]
 
 
