@@ -1,12 +1,13 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QIcon, QPixmap, QColor
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon, QTabWidget
 
 from openrok.idiomas import IDIOMAS
 from openrok.ui.aba_ajustes import AbaAjustes
 from openrok.ui.aba_banco import AbaBanco
 from openrok.ui.aba_inicio import AbaInicio
-from openrok.ui.tema import QSS, VERDE
+from openrok.ui.logo import icone
+from openrok.ui.tema import QSS
 
 
 # ==========================================================
@@ -17,12 +18,6 @@ from openrok.ui.tema import QSS, VERDE
 # Every settings change is written to config right away.
 # ==========================================================
 
-def icone():
-    pixmap = QPixmap(64, 64)
-    pixmap.fill(QColor(VERDE))
-    return QIcon(pixmap)
-
-
 class JanelaPrincipal(QMainWindow):
 
     idioma_mudou = Signal(str)
@@ -30,6 +25,7 @@ class JanelaPrincipal(QMainWindow):
     usar_ia_mudou = Signal(bool)
     marcar_no_jogo_mudou = Signal(bool)
     iniciar_mudou = Signal(bool)
+    painel_no_jogo_mudou = Signal(bool)
     calibrar_pedido = Signal()
     sair_pedido = Signal()
 
@@ -63,6 +59,7 @@ class JanelaPrincipal(QMainWindow):
         self.inicio.usar_ia_mudou.connect(lambda v: self._mudar("usar_ia", v, self.usar_ia_mudou))
         self.ajustes.idioma_mudou.connect(lambda v: self._mudar("idioma", v, self.idioma_mudou))
         self.ajustes.opacidade_mudou.connect(lambda v: self._mudar("opacidade", v, self.opacidade_mudou))
+        self.ajustes.painel_mudou.connect(lambda v: self._mudar("painel_no_jogo", v, self.painel_no_jogo_mudou))
         self.ajustes.fixar_mudou.connect(self._fixar)
         self.ajustes.iniciar_mudou.connect(lambda v: self._mudar("iniciar_com_sistema", v, self.iniciar_mudou))
         self.ajustes.calibrar_pedido.connect(self.calibrar_pedido)

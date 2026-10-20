@@ -117,3 +117,18 @@ def test_interruptores_do_inicio_mudam_config(janela, qtbot):
 
     janela.inicio.marcar_no_jogo.setChecked(False)
     assert janela.config.marcar_no_jogo is False
+
+
+def test_interruptores_no_lugar_das_caixas(janela):
+    from openrok.ui.interruptor import Interruptor
+
+    assert isinstance(janela.inicio.usar_ia, Interruptor)
+    assert isinstance(janela.ajustes.painel, Interruptor)
+
+
+def test_desligar_painel(janela, qtbot):
+    with qtbot.waitSignal(janela.painel_no_jogo_mudou) as sinal:
+        janela.ajustes.painel.setChecked(False)
+
+    assert sinal.args == [False]
+    assert janela.config.painel_no_jogo is False

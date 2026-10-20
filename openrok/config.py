@@ -20,6 +20,9 @@ def _idioma_do_sistema():
     return "pt" if codigo.lower().startswith("pt") else "en"
 
 
+TAMANHO_LISTAS = {"calibracao": 4, "painel_posicao": 2}
+
+
 @dataclass
 class Config:
     idioma: str = field(default_factory=_idioma_do_sistema)
@@ -29,6 +32,8 @@ class Config:
     fixar_no_topo: bool = False
     iniciar_com_sistema: bool = False
     calibracao: list | None = None  # [fx, fy, fw, fh] of the question+options area, fractions of the game window
+    painel_no_jogo: bool = True
+    painel_posicao: list | None = None  # [fx, fy]: center-top of the pill, fractions of the game window
 
     @classmethod
     def carregar(cls, caminho):
@@ -46,10 +51,10 @@ class Config:
             if campo.name not in dados:
                 continue
             valor, padrao = dados[campo.name], getattr(config, campo.name)
-            if campo.name == "calibracao":
-                if valor is None or (isinstance(valor, list) and len(valor) == 4
+            if campo.name in TAMANHO_LISTAS:
+                if valor is None or (isinstance(valor, list) and len(valor) == TAMANHO_LISTAS[campo.name]
                                      and all(isinstance(v, (int, float)) for v in valor)):
-                    config.calibracao = valor
+                    setattr(config, campo.name, valor)
             elif isinstance(padrao, bool):
                 if isinstance(valor, bool):
                     setattr(config, campo.name, valor)

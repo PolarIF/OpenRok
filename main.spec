@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('data', 'data'), ('openrok/tessdata', 'openrok/tessdata')],
+    datas=[('data', 'data'), ('openrok/tessdata', 'openrok/tessdata'), ('openrok/ui/logo.svg', 'openrok/ui')],
     hiddenimports=['Xlib', 'Xlib.display', 'Xlib.X'],
     hookspath=[],
     hooksconfig={},

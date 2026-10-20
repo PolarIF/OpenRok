@@ -21,6 +21,7 @@ def montar(qtbot, tmp_path):
         app.iniciar()
         qtbot.addWidget(app.janela)
         qtbot.addWidget(app.overlay)
+        qtbot.addWidget(app.painel)
         criadas.append(app)
         return app
 
@@ -65,3 +66,15 @@ def test_calibracao_chega_ao_vigia(montar, qtbot):
     calibracao = [0.3, 0.3, 0.5, 0.3]
     app = montar(calibracao=calibracao)
     assert app.vigia.calibracao == calibracao
+
+
+def test_painel_mostra_a_resposta(montar, qtbot):
+    app = montar()
+    qtbot.waitUntil(lambda: "A · 2" in app.painel.texto, timeout=8000)
+    assert app.painel.isVisible()
+
+
+def test_mover_painel_salva_config(montar):
+    app = montar()
+    app.painel.movido.emit(0.3, 0.1)
+    assert app.config.painel_posicao == [0.3, 0.1]
