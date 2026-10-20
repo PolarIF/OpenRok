@@ -4,7 +4,7 @@
 
 **Assistente para o evento *Liceu da Sabedoria* (Peerless Scholar / Lyceum of Wisdom) do jogo Rise of Kingdoms.**
 
-O OpenRok lê a pergunta que aparece na tela do jogo usando OCR, procura a resposta em um banco local de perguntas e respostas e — quando a pergunta é inédita — consulta o Google Gemini, exibindo o resultado em uma pequena janela flutuante. Tudo em poucos segundos, para dar tempo de responder antes do cronômetro acabar.
+O OpenRok vigia o jogo, lê cada pergunta assim que ela aparece e contorna a opção certa direto na tela do jogo, em uma fração de segundo, para dar tempo de responder antes do cronômetro acabar. Ele aprende com o próprio jogo: cada resposta que o jogo confirma em verde o deixa mais confiável.
 
 ---
 
@@ -23,90 +23,90 @@ Referências sobre o evento:
 
 ## Como funciona
 
-1. **Captura de tela** — o programa captura, de uma só vez, a área fixa onde a pergunta e as alternativas A/B/C/D aparecem no jogo.
-2. **Pré-processamento da imagem** — a imagem é convertida para escala de cinza, ampliada (2×), tem o contraste aumentado, passa por um leve desfoque para reduzir ruído e é binarizada (`OpenCV`), tudo para maximizar a precisão do OCR.
-3. **OCR** — o texto é extraído com o [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`). As instâncias do Tesseract são carregadas uma única vez ao abrir o programa e reaproveitadas, e as quatro alternativas são lidas em paralelo.
-4. **Busca no banco local** — o texto reconhecido é normalizado (minúsculas, sem acentos, sem pontuação) e comparado com o banco de perguntas usando *fuzzy matching* ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)), o que tolera erros de leitura do OCR. Uma checagem palavra a palavra evita confundir perguntas do mesmo modelo que diferem em uma palavra (ex.: *"Qual das seguintes NÃO é uma habilidade de Mulan?"* × *"...de Osman I?"*).
-5. **Fallback com IA** — se a pergunta não estiver no banco local, as quatro alternativas são enviadas, junto da pergunta, para o **Google Gemini**, que responde com a letra da alternativa correta.
-6. **Banco que se auto-alimenta** — quando a resposta do Gemini aponta claramente para uma das alternativas, a pergunta e essa alternativa são gravadas no CSV, então o banco local cresce com o uso. Respostas ambíguas são exibidas mas **não** são salvas, para que uma resposta duvidosa nunca contamine o banco.
-7. **Exibição** — a pergunta, a resposta, a origem (banco ou Gemini) e o tempo gasto aparecem em uma pequena janela que pode ser fixada sempre no topo. A busca roda em segundo plano, então a janela nunca congela.
+O OpenRok vigia o jogo sozinho: não há nada para clicar.
+
+1. **Acha a janela do jogo** ("Rise of Kingdoms") e olha para ela cerca de 15 vezes por segundo, só enquanto o jogo é a janela ativa.
+2. **Detecta uma pergunta nova.** Uma "impressão digital" do texto da pergunta distingue uma pergunta nova da mesma, mesmo com compressão ou mudança de luz.
+3. **Lê a pergunta** com o [Tesseract](https://github.com/tesseract-ocr/tesseract) (via `tesserocr`), com a pergunta e as quatro opções em paralelo. Os modelos do Tesseract são carregados uma vez e vêm junto com o app.
+4. **Acha a resposta:**
+   - primeiro num cache de imagens de perguntas já vistas neste computador, que pula o OCR;
+   - depois no banco de perguntas, com busca aproximada ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)) que tolera erros do OCR sem confundir perguntas que diferem em uma palavra;
+   - só se os dois falharem, pergunta a letra ao **Google Gemini** (opcional).
+5. **Marca no jogo:** um contorno brilhante em volta da opção certa. Ele é **verde** quando a resposta vem do banco e **amarelo** quando é sugestão da IA. O clique atravessa o contorno e chega ao jogo.
+6. **Aprende com o jogo.** Quando o jogo mostra a resposta oficial em verde, o OpenRok grava *essa* resposta num banco SQLite local. Nada que a IA diz é salvo sem a confirmação do jogo, e respostas erradas do banco são corrigidas sozinhas (com opção de desfazer).
+
+O OpenRok só olha a tela. Ele não lê nem altera a memória ou os arquivos do jogo, e nunca clica ou digita por você.
+
+**Velocidade** (replay de um vídeo real do jogo): cerca de 60–70 ms entre a pergunta aparecer e o contorno com o computador ocioso, e cerca de 20–30 ms para perguntas já vistas. Com o próprio jogo rodando no mesmo computador, o OCR disputa a CPU e pode levar até cerca de 0,3 s.
 
 ---
 
 ## Idiomas
 
-Um único programa atende os dois idiomas; cada um tem seu banco de perguntas, idioma de OCR, textos da interface e prompt do Gemini:
-
 | Idioma | OCR | Banco |
 |---|---|---|
-| English (padrão) | `eng` | `data/perguntas_respostas_en.csv` |
+| English | `eng` | `data/perguntas_respostas_en.csv` |
 | Português | `por` | `data/perguntas_respostas_pt.csv` |
 
-Troque pelo seletor de idioma na janela, ou inicie com `--lang pt`.
+Troque em **Ajustes**. O padrão segue o idioma do sistema.
 
 ---
 
 ## Requisitos
 
-- **Windows** — o projeto é voltado para Windows (o wheel do `tesserocr` incluído é `cp312 / win_amd64`, e a captura de tela usa `PIL.ImageGrab`).
-- **Python 3.12** (compatível com o wheel do `tesserocr` incluído).
-- **[Tesseract-OCR](https://github.com/tesseract-ocr/tesseract)** instalado, com os dados de idioma `eng` e/ou `por`. Se o Tesseract não encontrar os dados, defina `TESSDATA_PREFIX` apontando para a pasta `tessdata`.
-- Uma **chave de API do Google Gemini** para perguntas que não estão no banco (opcional — sem ela, o OpenRok continua respondendo tudo o que está no banco).
-- Jogo rodando em **1920×1080** (as coordenadas de captura estão mapeadas para essa resolução).
+- **Python 3.12**.
+- **Windows** ou **Linux**:
+  - No Linux o jogo roda pelo Wine (por exemplo, com o [Rise-of-Kingdoms-Linux-Installer](https://github.com/limeskat/Rise-of-Kingdoms-Linux-Installer)). O OpenRok funciona em X11 e em desktops Wayland via XWayland; foi testado no KDE Plasma.
+  - A versão Windows está escrita, mas **ainda não foi testada**.
+- Uma **chave do Google Gemini** é opcional, para perguntas que não estão no banco.
+
+Os modelos `eng`/`por` do Tesseract vêm dentro do app.
 
 ---
 
 ## Instalação
 
 ```bash
-# (recomendado) crie um ambiente virtual
 python -m venv .venv
-.venv\Scripts\activate
-
-# instale as dependências
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-> O wheel `wheels/tesserocr-2.7.1-cp312-cp312-win_amd64.whl` é usado para instalar o `tesserocr` no Windows sem compilar.
-
----
-
-## Configuração
-
-- **Chave do Gemini** — lida da variável de ambiente `GEMINI_API_KEY` (nunca coloque no código):
-  ```bash
-  setx GEMINI_API_KEY "sua-chave"
-  ```
-  Abra um novo terminal depois disso. O modelo pode ser trocado com `OPENROK_MODEL` (padrão: `gemini-3.1-flash-lite-preview`).
-- **Áreas de captura** — dicionário `tamanhos` em `main.py` (resolução `1920x1080`). Se o seu jogo estiver em outra resolução ou posição, adicione uma entrada com as coordenadas `(x, y, largura, altura)` de `Pergunta`, `A`, `B`, `C` e `D`; ela aparece no seletor de resolução.
-- **Escala de tela** — o OpenRok se declara DPI-aware, então a escala do Windows (125%, 150%…) não desloca as áreas de captura.
+No Windows, o `wheels/tesserocr-*.whl` incluído instala o `tesserocr` sem compilar.
 
 ---
 
 ## Uso
 
 ```bash
-python main.py            # Inglês
-python main.py --lang pt  # Português
+python -m openrok
 ```
 
-1. Deixe o jogo aberto em **1920×1080**, na tela de perguntas do Liceu da Sabedoria.
-2. Clique em **Pesquisar**.
-3. A pergunta e a resposta aparecem na janela, com a origem. Se a pergunta for inédita, o Gemini responde e ela é salva no banco para as próximas vezes.
-4. Use **Fixar Janela** para manter o OpenRok sempre visível sobre o jogo.
+1. Abra o jogo num exame do Liceu da Sabedoria.
+2. A aba **Início** do OpenRok mostra "Vigiando". A cada pergunta, a opção certa ganha o contorno.
+3. A aba **Banco** lista todas as perguntas com a situação de cada uma (confirmada pelo jogo, corrigida ou original). Por ali dá para buscar, exportar as confirmadas, importar um CSV e desfazer a última correção.
+4. A aba **Ajustes** tem idioma, opacidade do contorno, manter no topo, iniciar com o sistema e **Calibrar áreas**. Só é preciso calibrar se o contorno não bater com as caixas no tamanho da sua janela: arraste um retângulo em volta da pergunta e das quatro opções.
 
-### Gerando o `.exe`
+Fechar a janela mantém o OpenRok na bandeja do sistema; use **Sair** por lá para encerrar.
+
+### IA (opcional)
+
+```bash
+export GEMINI_API_KEY="sua-chave"     # Windows: setx GEMINI_API_KEY "sua-chave"
+```
+
+O modelo pode ser trocado com `OPENROK_MODEL`. Escolher qualquer provedor por dentro do app vem na próxima etapa.
+
+### Gerando o executável
 
 ```bash
 pyinstaller main.spec
 ```
 
-O executável (`dist/OpenRok.exe`) leva uma cópia dos bancos e os extrai para uma pasta `data/` ao lado dele na primeira execução; é nessa pasta que as perguntas novas são salvas.
-
 ### Testes
 
 ```bash
-pytest                       # testes unitários + replay de um vídeo real do jogo
+pytest                       # testes unitários, de interface e de X11 + replay de um vídeo real do jogo
 python -m bench.replay       # o que o vigia faz com o vídeo e quanto tempo cada resposta levou
 python -m bench.comparar_v1  # benchmark de antes e depois contra a primeira versão
 ```
@@ -117,27 +117,30 @@ python -m bench.comparar_v1  # benchmark de antes e depois contra a primeira ver
 
 ```
 OpenRok/
-├── main.py                        # O aplicativo (Tkinter + OCR + banco + Gemini)
-├── data/
-│   ├── perguntas_respostas_en.csv # Banco de perguntas e respostas (EN)
-│   └── perguntas_respostas_pt.csv # Banco de perguntas e respostas (PT)
-├── tests/test_main.py             # Testes (busca, leitura da resposta do Gemini, fluxo)
-├── requirements.txt               # Dependências
-├── main.spec                      # Spec do PyInstaller para gerar o .exe
-└── wheels/tesserocr-*.whl         # Wheel do tesserocr para Windows
+├── openrok/            # O app
+│   ├── vigia.py        # Vigia: detecta perguntas, sugere e aprende com o verde do jogo
+│   ├── tela.py         # Lê as cores das opções e a impressão digital da pergunta
+│   ├── ocr.py          # Tesseract (modelos em tessdata/)
+│   ├── conhecimento.py # Banco + o que este computador aprendeu (SQLite, armazem.py)
+│   ├── plataforma.py   # Janela do jogo e captura (X11 no Linux, Win32 no Windows)
+│   └── ui/             # Interface Qt: abas, overlay, calibração
+├── data/               # Bancos de perguntas e respostas (EN, PT)
+├── tests/              # Testes, com prints e vídeo reais em tests/fixtures/
+├── bench/              # Replay e benchmarks
+└── docs/superpowers/   # Spec do design e planos de implementação
 ```
 
 ---
 
 ## Tecnologias
 
-- **Python** + **Tkinter** (interface)
-- **pytest** (testes)
-- **OpenCV** e **Pillow** (captura e pré-processamento de imagem)
-- **Tesseract / tesserocr** (OCR)
-- **RapidFuzz** (busca aproximada tolerante a erros de OCR)
-- **Google Gemini** (fallback de IA para perguntas inéditas)
-- **PyInstaller** (empacotamento em `.exe`)
+- **Python** + **PySide6 (Qt)** para a interface e o overlay
+- **Tesseract / tesserocr**, **OpenCV** e **Pillow** para ler a tela
+- **RapidFuzz** para a busca aproximada
+- **SQLite** para o que o OpenRok aprende
+- **python-xlib** (Linux) e **mss** (Windows) para capturar a janela
+- **Google Gemini** como IA opcional
+- **pytest** + **pytest-qt** para os testes, e **PyInstaller** para empacotar
 
 ---
 

@@ -7,7 +7,6 @@ from openrok.caminhos import pasta_base
 from openrok.ia import Gemini, extrair_letra
 from openrok.idiomas import IDIOMAS
 from openrok.texto import normalizar
-from main import Pesquisa
 
 
 def criar_csv(caminho, linhas, cabecalho=("question", "response")):
@@ -110,89 +109,15 @@ def test_extrair_letra(resposta, esperado):
 
 
 # ----------------------------------------------------------
-# Search pipeline (OCR and Gemini faked)
+# AI factory
 # ----------------------------------------------------------
 
-class OCRFalso:
-    def __init__(self, textos):
-        self.textos = textos
+def test_sem_chave_nao_cria_ia(monkeypatch):
+    from openrok.app import fabrica_ia
 
-    def ler(self, imagem):
-        return self.textos[imagem]
-
-    def ler_opcoes(self, imagens):
-        return [self.ler(imagem) for imagem in imagens]
-
-
-class GeminiFalso:
-    configurado = True
-
-    def __init__(self, resposta=None, erro=None):
-        self.resposta, self.erro, self.chamadas = resposta, erro, 0
-
-    def responder(self, pergunta, opcoes):
-        self.chamadas += 1
-        if self.erro:
-            raise self.erro
-        letra = extrair_letra(self.resposta, opcoes)
-        if letra:
-            return opcoes["ABCD".index(letra)], True
-        return self.resposta, False
-
-
-IMAGENS = {nome: nome for nome in ("Pergunta", "A", "B", "C", "D")}
-
-
-def pesquisa(banco, pergunta, gemini):
-    ocr = OCRFalso({"Pergunta": pergunta, "A": "Augustus", "B": "Nero", "C": "Caesar", "D": "Trajan"})
-    return Pesquisa("en", banco=banco, ocr=ocr, gemini=gemini)
-
-
-def test_pergunta_conhecida_nao_chama_gemini(banco):
-    gemini = GeminiFalso("A")
-    resultado = pesquisa(banco, "During the Trojan War, which Greek warrior killed Hector?", gemini).executar(None, IMAGENS)
-
-    assert resultado["resposta"] == "Achilles"
-    assert gemini.chamadas == 0
-
-
-def test_resposta_validada_do_gemini_e_salva(banco):
-    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", GeminiFalso("A"))
-    resultado = p.executar(None, IMAGENS)
-
-    assert resultado["resposta"] == "Augustus"
-    assert banco.buscar("Who was the first emperor of the Roman Empire?")[1] == "Augustus"
-
-
-def test_resposta_nao_validada_nao_e_salva(banco):
-    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", GeminiFalso("I am not sure"))
-    resultado = p.executar(None, IMAGENS)
-
-    assert resultado["resposta"] == "I am not sure"
-    assert banco.buscar("Who was the first emperor of the Roman Empire?") is None
-
-
-def test_erro_do_gemini_vira_mensagem(banco):
-    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", GeminiFalso(erro=RuntimeError("quota")))
-    resultado = p.executar(None, IMAGENS)
-
-    assert "quota" in resultado["erro"]
-    assert len(banco) == 4
-
-
-def test_sem_chave_nao_tenta_gemini(banco, monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-
-    p = pesquisa(banco, "Who was the first emperor of the Roman Empire?", Gemini("en"))
-    resultado = p.executar(None, IMAGENS)
-
-    assert resultado["erro"] == IDIOMAS["en"]["textos"]["sem_chave"]
-
-
-def test_sem_texto(banco):
-    resultado = pesquisa(banco, "", GeminiFalso("A")).executar(None, IMAGENS)
-    assert resultado["erro"] == IDIOMAS["en"]["textos"]["sem_texto"]
+    assert fabrica_ia("pt") is None
 
 
 # ----------------------------------------------------------

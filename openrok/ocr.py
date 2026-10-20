@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import cv2
 import numpy as np
 import tesserocr
-from PIL import Image, ImageEnhance, ImageGrab
+from PIL import Image, ImageEnhance
 
 from openrok.caminhos import pasta_tessdata
 
@@ -53,21 +53,6 @@ def preprocessar_opcao(imagem):
 
     _, binaria = cv2.threshold(brancura, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     return Image.fromarray(binaria)
-
-
-def capturar_tela(areas):
-    """Grabs the screen once and crops every area out of it."""
-    x1 = min(x for x, y, w, h in areas.values())
-    y1 = min(y for x, y, w, h in areas.values())
-    x2 = max(x + w for x, y, w, h in areas.values())
-    y2 = max(y + h for x, y, w, h in areas.values())
-
-    tela = ImageGrab.grab(bbox=(x1, y1, x2, y2))
-
-    return {
-        nome: tela.crop((x - x1, y - y1, x - x1 + w, y - y1 + h))
-        for nome, (x, y, w, h) in areas.items()
-    }
 
 
 class MotorOCR:
