@@ -16,6 +16,7 @@ from openrok.plataforma import plataforma
 from openrok.ui.calibracao import DialogoCalibracao
 from openrok.ui.janela import JanelaPrincipal
 from openrok.ui.overlay import Overlay
+from openrok.ui.painel import Painel
 from openrok.ui.ponte import Ponte
 from openrok.vigia import Vigia
 
@@ -54,12 +55,15 @@ class Aplicacao:
         self.janela = JanelaPrincipal(self.config, self.conhecimento, self.salvar_config)
         self.overlay = Overlay(IDIOMAS[self.config.idioma]["textos"])
         self.overlay.definir_opacidade(self.config.opacidade)
+        self.painel = Painel(IDIOMAS[self.config.idioma]["textos"], self.config.painel_posicao)
+        self.painel.movido.connect(self._painel_movido)
 
         self.janela.idioma_mudou.connect(self.trocar_idioma)
         self.janela.opacidade_mudou.connect(self.overlay.definir_opacidade)
         self.janela.usar_ia_mudou.connect(self._usar_ia)
         self.janela.marcar_no_jogo_mudou.connect(lambda ativo: ativo or self.overlay.esconder())
         self.janela.iniciar_mudou.connect(self._iniciar_com_sistema)
+        self.janela.painel_no_jogo_mudou.connect(lambda ativo: ativo or self.painel.hide())
         self.janela.calibrar_pedido.connect(self.calibrar)
         self.janela.sair_pedido.connect(self.encerrar)
 
@@ -90,6 +94,7 @@ class Aplicacao:
             self.ocr.fechar()
             self.ocr = None
         self.overlay.esconder()
+        self.painel.hide()
 
     # ------------------------------------------------------
     # Events and settings
@@ -100,6 +105,9 @@ class Aplicacao:
         if self.config.marcar_no_jogo:
             self.overlay.aplicar(evento, self.vigia.geometria)
 
+        if self.config.painel_no_jogo:
+            self.painel.aplicar(evento, self.vigia.geometria)
+
         if isinstance(evento, Aprendido):
             self.janela.inicio.atualizar_total(len(self.conhecimento))
 
@@ -108,6 +116,10 @@ class Aplicacao:
             self.config.salvar(self.caminho_config)
         except OSError:
             pass  # settings still apply for this session
+
+    def _painel_movido(self, fx, fy):
+        self.config.painel_posicao = [fx, fy]
+        self.salvar_config()
 
     def _usar_ia(self, ativo):
         self.vigia.ia = self._ia if ativo else None
@@ -126,6 +138,8 @@ class Aplicacao:
         self.config.idioma = idioma
         self.conhecimento, self.ocr, self._ia = self._carregar_idioma(idioma)
         self.overlay.textos = IDIOMAS[idioma]["textos"]
+        self.painel.textos = IDIOMAS[idioma]["textos"]
+        self.painel.hide()
         self.janela.trocar_conhecimento(self.conhecimento)
 
         self._iniciar_vigia()

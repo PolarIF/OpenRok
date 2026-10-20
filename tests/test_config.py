@@ -40,3 +40,14 @@ def test_valores_de_tipo_errado_usam_padrao(tmp_path):
     config = Config.carregar(caminho)
     assert config.opacidade == 1.0
     assert config.marcar_no_jogo is False
+
+
+def test_painel_padrao_e_posicao(tmp_path):
+    caminho = tmp_path / "config.json"
+    assert Config().painel_no_jogo is True and Config().painel_posicao is None
+
+    caminho.write_text('{"painel_posicao": [0.3, 0.1]}', encoding="utf-8")
+    assert Config.carregar(caminho).painel_posicao == [0.3, 0.1]
+
+    caminho.write_text('{"painel_posicao": "topo"}', encoding="utf-8")
+    assert Config.carregar(caminho).painel_posicao is None

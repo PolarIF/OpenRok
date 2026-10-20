@@ -25,14 +25,12 @@ QPushButton {{
 QPushButton:hover {{ border-color: {VERDE}; }}
 QPushButton#principal {{ background: {VERDE}; color: #0D2E12; font-weight: bold; border: none; }}
 QPushButton:checked {{ border: 1px solid {VERDE}; color: {VERDE}; }}
-QLabel, QCheckBox {{ background: transparent; }}
+QLabel {{ background: transparent; }}
 QLabel#secundario {{ color: {SECUNDARIO}; font-size: 12px; }}
 QLabel#resposta {{ font-size: 20px; font-weight: bold; color: {VERDE}; }}
 QLabel#numero {{ font-size: 17px; font-weight: bold; }}
 QListWidget::item {{ padding: 8px 4px; border-bottom: 1px solid {BORDA}; }}
 QListWidget::item:selected {{ background: {BORDA}; color: {TEXTO}; }}
-QCheckBox::indicator {{ width: 16px; height: 16px; border-radius: 4px; border: 1px solid {SECUNDARIO}; }}
-QCheckBox::indicator:checked {{ background: {VERDE}; border-color: {VERDE}; }}
 QFrame#cartao {{ background: {PAINEL}; border-radius: 8px; border-left: 4px solid {VERDE}; }}
 QFrame#estatistica {{ background: {PAINEL}; border-radius: 6px; }}
 QSlider::handle:horizontal {{ background: {VERDE}; width: 14px; border-radius: 7px; margin: -5px 0; }}

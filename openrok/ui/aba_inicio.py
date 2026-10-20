@@ -1,9 +1,10 @@
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QVBoxLayout, QWidget
 
 from openrok.eventos import (Aprendido, ErroIA, JogoEncontrado, JogoPerdido, OutraTela, PerguntaDetectada, Resultado,
                              SemResposta, Sugestao)
 from openrok.idiomas import LETRAS
+from openrok.ui.interruptor import Interruptor
 
 # The watcher reports these reasons in Portuguese; the tab translates them
 MOTIVO_FORA = "fora do banco"
@@ -63,10 +64,10 @@ class AbaInicio(QWidget):
             interno.addWidget(legenda)
             estatisticas.addWidget(caixa, 0, coluna)
 
-        self.marcar_no_jogo = QCheckBox(textos["marcar_no_jogo"])
+        self.marcar_no_jogo = Interruptor(textos["marcar_no_jogo"])
         self.marcar_no_jogo.setChecked(config.marcar_no_jogo)
         self.marcar_no_jogo.toggled.connect(self.marcar_no_jogo_mudou)
-        self.usar_ia = QCheckBox(textos["usar_ia"])
+        self.usar_ia = Interruptor(textos["usar_ia"])
         self.usar_ia.setChecked(config.usar_ia)
         self.usar_ia.toggled.connect(self.usar_ia_mudou)
 
@@ -74,10 +75,8 @@ class AbaInicio(QWidget):
         layout.addWidget(self.status)
         layout.addWidget(cartao)
         layout.addLayout(estatisticas)
-        interruptores = QHBoxLayout()
-        interruptores.addWidget(self.marcar_no_jogo)
-        interruptores.addWidget(self.usar_ia)
-        layout.addLayout(interruptores)
+        layout.addWidget(self.marcar_no_jogo)
+        layout.addWidget(self.usar_ia)
         layout.addStretch()
 
     def aplicar(self, evento):
