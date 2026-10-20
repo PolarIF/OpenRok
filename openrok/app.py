@@ -1,7 +1,9 @@
 import logging
 import os
 import sys
+import tempfile
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -36,11 +38,14 @@ from openrok.vigia import Vigia
 
 class Aplicacao:
 
-    def __init__(self, config, janela_jogo, captura, armazem, caminho_config, ia_fabrica):
+    def __init__(self, config, janela_jogo, captura, armazem, caminho_config, ia_fabrica, sem_banco=False):
         self.config = config
         self.janela_jogo = janela_jogo
         self.captura = captura
-        self.armazem = armazem
+        # Diagnostic mode: no base database and a throwaway store, so every
+        # question is unknown and nothing reaches the real database
+        self.sem_banco = sem_banco
+        self.armazem = Armazem(":memory:") if sem_banco else armazem
         self.caminho_config = caminho_config
         self.ia_fabrica = ia_fabrica
 
@@ -55,6 +60,8 @@ class Aplicacao:
         self.conhecimento, self.ocr, self._ia = self._carregar_idioma(self.config.idioma)
 
         self.janela = JanelaPrincipal(self.config, self.conhecimento, self.salvar_config)
+        if self.sem_banco:
+            self.janela.setWindowTitle("OpenRok [diagnóstico: sem banco]")
         self.overlay = Overlay(IDIOMAS[self.config.idioma]["textos"])
         self.overlay.definir_opacidade(self.config.opacidade)
         self.painel = Painel(IDIOMAS[self.config.idioma]["textos"], self.config.painel_posicao)
@@ -72,7 +79,13 @@ class Aplicacao:
         self._iniciar_vigia()
 
     def _carregar_idioma(self, idioma):
-        conhecimento = Conhecimento(idioma, caminho_csv(IDIOMAS[idioma]["csv"]), self.armazem)
+        if self.sem_banco:
+            vazio = Path(tempfile.gettempdir()) / "openrok-sem-banco.csv"
+            vazio.write_text("pergunta,resposta\n", encoding="utf-8")
+            csv = vazio
+        else:
+            csv = caminho_csv(IDIOMAS[idioma]["csv"])
+        conhecimento = Conhecimento(idioma, csv, self.armazem)
         return conhecimento, MotorOCR(IDIOMAS[idioma]["ocr"]), self.ia_fabrica(idioma)
 
     def _iniciar_vigia(self):
@@ -187,7 +200,8 @@ def main():
     config = Config.carregar(pasta / "config.json")
     janela_jogo, captura = plataforma()
 
-    aplicacao = Aplicacao(config, janela_jogo, captura, Armazem(pasta / "openrok.db"), pasta / "config.json", fabrica_ia)
+    aplicacao = Aplicacao(config, janela_jogo, captura, Armazem(pasta / "openrok.db"), pasta / "config.json", fabrica_ia,
+                          sem_banco=bool(os.environ.get("OPENROK_SEM_BANCO")))
     aplicacao.iniciar()
     aplicacao.janela.show()
 
