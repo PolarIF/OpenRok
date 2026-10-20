@@ -67,15 +67,31 @@ class Areas:
         return Ret(x1, y1, x2 - x1, y2 - y1)
 
 
-def areas_para(cliente):
-    """Areas in screen coordinates for a game client rectangle."""
-    s = min(cliente.w / REFERENCIA[0], cliente.h / REFERENCIA[1])
-    dx = cliente.x + (cliente.w - REFERENCIA[0] * s) / 2
-    dy = cliente.y + (cliente.h - REFERENCIA[1] * s) / 2
+ENVOLTORIO_REF = Ret(592, 335, 899, 316)
+
+
+def areas_para(cliente, calibracao=None):
+    """Areas in screen coordinates for a game client rectangle.
+
+    calibracao = [fx, fy, fw, fh]: where the user marked the question and
+    options area, as fractions of the client. The reference layout is then
+    stretched onto it (x and y scaled independently).
+    """
+    if calibracao:
+        fx, fy, fw, fh = calibracao
+        sx = fw * cliente.w / ENVOLTORIO_REF.w
+        sy = fh * cliente.h / ENVOLTORIO_REF.h
+        dx = cliente.x + fx * cliente.w - ENVOLTORIO_REF.x * sx
+        dy = cliente.y + fy * cliente.h - ENVOLTORIO_REF.y * sy
+    else:
+        sx = sy = min(cliente.w / REFERENCIA[0], cliente.h / REFERENCIA[1])
+        dx = cliente.x + (cliente.w - REFERENCIA[0] * sx) / 2
+        dy = cliente.y + (cliente.h - REFERENCIA[1] * sy) / 2
 
     def escalar(r):
-        return Ret(round(r.x * s + dx), round(r.y * s + dy), round(r.w * s), round(r.h * s))
+        return Ret(round(r.x * sx + dx), round(r.y * sy + dy), round(r.w * sx), round(r.h * sy))
 
+    s = min(sx, sy)
     return Areas(
         pergunta=escalar(PERGUNTA_REF),
         caixas={letra: escalar(r) for letra, r in CAIXAS_REF.items()},

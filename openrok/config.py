@@ -1,0 +1,68 @@
+import json
+import locale
+import os
+from dataclasses import asdict, dataclass, field, fields
+
+
+# ==========================================================
+# USER SETTINGS
+# ==========================================================
+# Saved as config.json in the user data folder. A missing,
+# corrupted or old file never stops the app: anything that
+# can't be read falls back to the default.
+# ==========================================================
+
+def _idioma_do_sistema():
+    try:
+        codigo = locale.getlocale()[0] or ""
+    except ValueError:
+        codigo = ""
+    return "pt" if codigo.lower().startswith("pt") else "en"
+
+
+@dataclass
+class Config:
+    idioma: str = field(default_factory=_idioma_do_sistema)
+    marcar_no_jogo: bool = True
+    usar_ia: bool = True
+    opacidade: float = 1.0
+    fixar_no_topo: bool = False
+    iniciar_com_sistema: bool = False
+    calibracao: list | None = None  # [fx, fy, fw, fh] of the question+options area, fractions of the game window
+
+    @classmethod
+    def carregar(cls, caminho):
+        config = cls()
+
+        try:
+            dados = json.loads(open(caminho, encoding="utf-8").read())
+        except (OSError, ValueError):
+            return config
+
+        if not isinstance(dados, dict):
+            return config
+
+        for campo in fields(cls):
+            if campo.name not in dados:
+                continue
+            valor, padrao = dados[campo.name], getattr(config, campo.name)
+            if campo.name == "calibracao":
+                if valor is None or (isinstance(valor, list) and len(valor) == 4
+                                     and all(isinstance(v, (int, float)) for v in valor)):
+                    config.calibracao = valor
+            elif isinstance(padrao, bool):
+                if isinstance(valor, bool):
+                    setattr(config, campo.name, valor)
+            elif isinstance(padrao, float):
+                if isinstance(valor, (int, float)) and not isinstance(valor, bool):
+                    setattr(config, campo.name, float(valor))
+            elif isinstance(valor, type(padrao)):
+                setattr(config, campo.name, valor)
+
+        return config
+
+    def salvar(self, caminho):
+        temporario = f"{caminho}.tmp"
+        with open(temporario, "w", encoding="utf-8") as file:
+            json.dump(asdict(self), file, ensure_ascii=False, indent=2)
+        os.replace(temporario, caminho)
