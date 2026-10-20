@@ -49,6 +49,15 @@ class BancoPerguntas:
         self.normalizadas.append(normalizada)
         return True
 
+    def definir(self, pergunta, resposta):
+        """Overrides (or adds) an answer in memory, without touching the CSV."""
+        i = self._indice.get(normalizar(pergunta))
+
+        if i is None:
+            self._adicionar(pergunta, resposta)
+        else:
+            self.respostas[i] = resposta.strip()
+
     def __len__(self):
         return len(self.perguntas)
 
