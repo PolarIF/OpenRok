@@ -318,3 +318,29 @@ def test_vigia_usa_calibracao(ocr, conhecimento):
 
     rodar(vigia, captura, carregar_print("q1_go"))
     assert vigia.geometria[1] == areas_para(TELA, vigia.calibracao)
+
+
+def test_falha_ao_aprender_fica_no_log(ocr, conhecimento, caplog):
+    def explode(*args):
+        raise sqlite3.OperationalError("database is locked")
+
+    conhecimento.aprender = explode
+    vigia, captura, _, eventos = montar(ocr, conhecimento)
+    original = carregar_print("q4_einstein")
+
+    with caplog.at_level("DEBUG", logger="openrok.vigia"):
+        rodar(vigia, captura, neutralizar(original, {"A": "1915", "D": "1905"}), ciclos=2)
+        rodar(vigia, captura, original, ciclos=1)
+
+    mensagens = caplog.text
+    assert "resultado correta=D marcada=A" in mensagens
+    assert "database is locked" in mensagens
+
+
+def test_resultado_ignorado_fica_no_log(ocr, conhecimento, caplog):
+    vigia, captura, _, _ = montar(ocr, conhecimento)
+
+    with caplog.at_level("DEBUG", logger="openrok.vigia"):
+        rodar(vigia, captura, carregar_print("q4_einstein"), ciclos=1)
+
+    assert "resultado sem pergunta resolvida" in caplog.text

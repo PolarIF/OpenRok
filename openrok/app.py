@@ -1,5 +1,7 @@
+import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -177,6 +179,11 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     pasta = pasta_dados()
+    arquivo_log = RotatingFileHandler(pasta / "openrok.log", maxBytes=1_000_000, backupCount=2, encoding="utf-8")
+    arquivo_log.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logging.basicConfig(level=logging.DEBUG if os.environ.get("OPENROK_DEBUG") else logging.INFO,
+                        handlers=[arquivo_log])
+
     config = Config.carregar(pasta / "config.json")
     janela_jogo, captura = plataforma()
 
