@@ -52,6 +52,7 @@ class Vigia:
         self.ia = ia
 
         self.estado = Estado.AGUARDANDO_JOGO
+        self.geometria = None  # (game client, areas) of the last cycle with the game in front
         self._esquecer_pergunta()
         self._numero = 0  # identifies the current question for late AI replies
 
@@ -97,6 +98,7 @@ class Vigia:
             self.estado = None  # game found, screen not identified yet
 
         areas = areas_para(cliente)
+        self.geometria = (cliente, areas)
         envoltorio = areas.envoltorio()
         imagem = self.captura.capturar(envoltorio)
 
