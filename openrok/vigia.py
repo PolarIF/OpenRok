@@ -65,6 +65,12 @@ class Vigia:
         self._texto = None
         self._opcoes = None
         self._resultado_visto = False
+        self._eventos_pergunta = []  # replayed when the game comes back to this question
+        self._reemitir = False
+
+    def _emitir_da_pergunta(self, evento):
+        self._eventos_pergunta.append(evento)
+        self.emitir(evento)
 
     def _mudar(self, estado, evento=None):
         if self.estado != estado and evento is not None:
@@ -77,10 +83,12 @@ class Vigia:
     def ciclo(self):
         inicio = time.perf_counter()
 
+        # Leaving the game (alt-tab, a popup) keeps the current question in
+        # memory: coming back to it redraws the suggestion without OCR or AI,
+        # and the green result can still be learned
         cliente = self.janela.localizar()
         if cliente is None or not self.janela.ativa():
-            if self.estado != Estado.AGUARDANDO_JOGO:
-                self._esquecer_pergunta()
+            self._reemitir = True
             self._mudar(Estado.AGUARDANDO_JOGO, JogoPerdido())
             return
 
@@ -93,7 +101,7 @@ class Vigia:
         imagem = self.captura.capturar(envoltorio)
 
         if not eh_tela_de_perguntas([s.recortar(imagem, envoltorio) for s in areas.sondas]):
-            self._esquecer_pergunta()
+            self._reemitir = True
             self._mudar(Estado.OUTRA_TELA, OutraTela())
             return
 
@@ -114,6 +122,11 @@ class Vigia:
         h = impressao(areas.pergunta.recortar(imagem, envoltorio))
 
         if self._atual is not None and distancia(h, self._atual) <= LIMITE_MESMA:
+            if self._reemitir:
+                self._reemitir = False
+                self.estado = Estado.PERGUNTA
+                for evento in self._eventos_pergunta:
+                    self.emitir(evento)
             return
 
         if self._candidato is not None and distancia(h, self._candidato) <= LIMITE_MESMA:
@@ -134,12 +147,11 @@ class Vigia:
         vermelhas = [letra for letra, e in estados.items() if e == EstadoOpcao.VERMELHA]
         self.emitir(Resultado(correta, vermelhas[0] if vermelhas else correta))
 
-        resposta = self._opcoes[LETRAS.index(correta)] if self._opcoes else ""
-        if not resposta:
+        if not self._opcoes or not self._opcoes[LETRAS.index(correta)]:
             return
 
         try:
-            tipo = self.conhecimento.aprender(self._texto, resposta, self._atual)
+            tipo = self.conhecimento.aprender(self._texto, self._opcoes, correta, self._atual)
         except Exception:
             # Learning is a bonus: a locked or full database must never stop the watcher
             return
@@ -176,19 +188,19 @@ class Vigia:
             origem = "banco"
 
         self._texto, self._opcoes = texto, opcoes
-        self.emitir(PerguntaDetectada(pergunta, opcoes))
+        self._emitir_da_pergunta(PerguntaDetectada(pergunta, opcoes))
 
         letra = mapear_resposta(resposta, opcoes) if resposta else None
         if letra:
-            self.emitir(Sugestao(letra, origem, (time.perf_counter() - inicio) * 1000))
+            self._emitir_da_pergunta(Sugestao(letra, origem, (time.perf_counter() - inicio) * 1000))
             return
 
         if self.ia is not None:
             self._perguntar_ia(pergunta, opcoes, inicio)
         elif resposta:
-            self.emitir(SemResposta(f"resposta do banco não está entre as opções: {resposta}"))
+            self._emitir_da_pergunta(SemResposta(f"resposta do banco não está entre as opções: {resposta}"))
         else:
-            self.emitir(SemResposta("fora do banco"))
+            self._emitir_da_pergunta(SemResposta("fora do banco"))
 
     def _perguntar_ia(self, pergunta, opcoes, inicio):
         numero = self._numero
@@ -202,7 +214,7 @@ class Vigia:
 
             # The question may have changed while the AI was thinking
             if letra in LETRAS and numero == self._numero:
-                self.emitir(Sugestao(letra, "ia", (time.perf_counter() - inicio) * 1000))
+                self._emitir_da_pergunta(Sugestao(letra, "ia", (time.perf_counter() - inicio) * 1000))
 
         self._executor_ia.submit(trabalho)
 

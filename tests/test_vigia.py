@@ -245,3 +245,60 @@ def test_cache_errado_cai_para_o_banco(ocr, conhecimento):
 
     assert "Go" in eventos[-2].texto
     assert (eventos[-1].letra, eventos[-1].origem) == ("A", "banco")
+
+
+class OCRContado:
+    def __init__(self, ocr):
+        self.ocr, self.leituras = ocr, 0
+
+    def ler_opcoes(self, imagens):
+        self.leituras += 1
+        return self.ocr.ler_opcoes(imagens)
+
+    def ler_tudo(self, pergunta, opcoes):
+        self.leituras += 1
+        return self.ocr.ler_tudo(pergunta, opcoes)
+
+
+def test_volta_ao_jogo_reemite_sem_novo_ocr(ocr, conhecimento):
+    contado = OCRContado(ocr)
+    vigia, captura, janela, eventos = montar(contado, conhecimento)
+    q1 = carregar_print("q1_go")
+    rodar(vigia, captura, q1, ciclos=2)
+
+    janela.ativa_agora = False
+    rodar(vigia, captura, q1, ciclos=1)
+    janela.ativa_agora = True
+    del eventos[:]
+    rodar(vigia, captura, q1, ciclos=1)
+
+    assert tipos(eventos) == [JogoEncontrado, PerguntaDetectada, Sugestao]
+    assert contado.leituras == 1
+
+
+def test_trocar_de_janela_depois_de_responder_ainda_aprende(ocr, conhecimento):
+    vigia, captura, janela, eventos = montar(ocr, conhecimento)
+    original = carregar_print("q4_einstein")
+    rodar(vigia, captura, neutralizar(original, {"A": "1915", "D": "1905"}), ciclos=2)
+
+    janela.ativa_agora = False
+    rodar(vigia, captura, original, ciclos=1)
+    janela.ativa_agora = True
+    rodar(vigia, captura, original, ciclos=1)
+
+    assert eventos[-2:] == [Resultado("D", "A"), Aprendido("confirmada")]
+
+
+def test_alternar_janela_no_verde_nao_aprende_duas_vezes(ocr, conhecimento):
+    vigia, captura, janela, eventos = montar(ocr, conhecimento)
+    original = carregar_print("q4_einstein")
+    rodar(vigia, captura, neutralizar(original, {"A": "1915", "D": "1905"}), ciclos=2)
+    rodar(vigia, captura, original, ciclos=1)
+
+    janela.ativa_agora = False
+    rodar(vigia, captura, original, ciclos=1)
+    janela.ativa_agora = True
+    rodar(vigia, captura, original, ciclos=2)
+
+    assert tipos(eventos).count(Aprendido) == 1
+    assert tipos(eventos).count(Resultado) == 1

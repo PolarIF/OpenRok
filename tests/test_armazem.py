@@ -47,7 +47,7 @@ def test_conhecimento_usuario_vence(tmp_path):
     armazem = Armazem(":memory:")
 
     conhecimento = Conhecimento("en", caminho, armazem)
-    assert conhecimento.aprender(PERGUNTA, "Lungs", None) == "corrigida"
+    assert conhecimento.aprender(PERGUNTA, ["Heart", "Lungs", "Liver", "Kidney"], "B", None) == "corrigida"
     assert conhecimento.buscar(PERGUNTA)[1] == "Lungs"
 
     assert Conhecimento("en", caminho, armazem).buscar(PERGUNTA)[1] == "Lungs"
@@ -59,7 +59,7 @@ def test_aprender_usa_pergunta_canonica(tmp_path):
     conhecimento = Conhecimento("en", caminho, armazem)
 
     lida = "Which of the fol1owing organs is NOT part of the\nhuman respiratory system?"
-    assert conhecimento.aprender(lida, "Lungs", None) == "confirmada"
+    assert conhecimento.aprender(lida, ["Lungs", "Heart", "Liver", "Kidney"], "A", None) == "confirmada"
     assert armazem.perguntas("en") == [(PERGUNTA, "Lungs")]
 
 
@@ -70,7 +70,7 @@ def test_por_hash(tmp_path):
     perto = bytes([0b11110000] * 9 + [0b11110001]) + bytes(134)  # 1/41 apart
     longe = bytes([0b11110000] * 8 + [0b00001111] * 2) + bytes(134)  # 16/48 apart
 
-    assert conhecimento.aprender(PERGUNTA, "Lungs", h) == "nova"
+    assert conhecimento.aprender(PERGUNTA, ["Lungs", "Heart", "Liver", "Kidney"], "A", h) == "nova"
     assert conhecimento.por_hash(perto) == (PERGUNTA, "Lungs")
     assert conhecimento.por_hash(longe) is None
 
@@ -82,3 +82,21 @@ def test_persistencia_em_arquivo(tmp_path):
     reaberto = Armazem(caminho)
     assert reaberto.perguntas("pt") == [("Quem pintou a Mona Lisa?", "Leonardo da Vinci")]
     assert reaberto.hashes("pt") == [(b"\x01\x02", "Quem pintou a Mona Lisa?", "Leonardo da Vinci")]
+
+
+def test_ocr_sujo_na_opcao_verde_nao_corrompe_resposta_certa(tmp_path):
+    pergunta = "Em que ano Einstein publicou seus quatro Annus Mirabilis?"
+    caminho = criar_csv(tmp_path / "db.csv", [(pergunta, "1905")])
+    armazem = Armazem(":memory:")
+    conhecimento = Conhecimento("pt", caminho, armazem)
+
+    assert conhecimento.aprender(pergunta, ["1915 v", "1879", "1921", "1905 4"], "D", None) == "confirmada"
+    assert conhecimento.buscar(pergunta)[1] == "1905"
+    assert armazem.perguntas("pt") == [(pergunta, "1905")]
+
+
+def test_pergunta_nova_guarda_texto_da_opcao(tmp_path):
+    conhecimento = Conhecimento("en", criar_csv(tmp_path / "db.csv", []), Armazem(":memory:"))
+
+    assert conhecimento.aprender(PERGUNTA, ["Heart", "Lungs\nand trachea", "", ""], "B", None) == "nova"
+    assert conhecimento.buscar(PERGUNTA)[1] == "Lungs and trachea"

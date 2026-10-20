@@ -1,4 +1,5 @@
-from openrok.banco import BancoPerguntas
+from openrok.banco import BancoPerguntas, mapear_resposta
+from openrok.idiomas import LETRAS
 from openrok.tela import LIMITE_MESMA, distancia
 
 
@@ -35,13 +36,21 @@ class Conhecimento:
 
         return melhor[1], melhor[2]
 
-    def aprender(self, texto_pergunta, resposta, hash_img):
+    def aprender(self, texto_pergunta, opcoes, letra, hash_img):
+        """Learns the option the game showed in green. Returns nova/confirmada/corrigida.
+
+        The OCR text of the green option may be noisy ("1905 4"): when the
+        known answer already points to that option, it is a confirmation and
+        the known text is kept.
+        """
+        lida = " ".join(opcoes[LETRAS.index(letra)].split())
         encontrada = self.buscar(texto_pergunta)
 
         if encontrada:
             pergunta, anterior, _ = encontrada
+            resposta = anterior if mapear_resposta(anterior, opcoes) == letra else lida
         else:
-            pergunta, anterior = " ".join(texto_pergunta.split()), None
+            pergunta, anterior, resposta = " ".join(texto_pergunta.split()), None, lida
 
         tipo = self.armazem.aprender(self.idioma, pergunta, resposta, anterior, hash_img)
         self.banco.definir(pergunta, resposta)
