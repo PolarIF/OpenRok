@@ -205,3 +205,15 @@ def test_bancos_reais_carregam(idioma):
     assert len(banco) > 1200
     pergunta = banco.perguntas[0]
     assert banco.buscar(pergunta)[1] == banco.respostas[0]
+
+
+class ClienteGeminiFalso:
+    def __init__(self, texto):
+        modelos = type("Modelos", (), {"generate_content": lambda _self, **kwargs: type("R", (), {"text": texto})()})
+        self.models = modelos()
+
+
+@pytest.mark.parametrize("texto, esperado", [("B", "B"), ("Answer: Achilles", None), ("I don't know", None)])
+def test_gemini_escolher_devolve_letra(texto, esperado):
+    gemini = Gemini("en", client=ClienteGeminiFalso(texto))
+    assert gemini.escolher("Who killed Hector?", ["Paris", "Achilles", "Ajax", "Priam"]) == esperado

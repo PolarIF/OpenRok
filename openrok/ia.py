@@ -80,11 +80,10 @@ class Gemini:
             self._client = genai.Client()
         return self._client
 
-    def responder(self, pergunta, opcoes):
-        """Returns (answer, validated). validated=True when the reply maps to an option."""
+    def _perguntar(self, pergunta, opcoes):
         from google.genai import types
 
-        texto_opcoes = "\n".join(f"{letra}) {opcao}" for letra, opcao in zip(LETRAS, opcoes))
+        texto_opcoes = "\n".join(f"{letra}) {opcao}" for letra, opcao in zip(LETRAS, opcoes) if opcao)
 
         response = self._cliente().models.generate_content(
             model=MODELO_GEMINI,
@@ -99,6 +98,18 @@ class Gemini:
         letra = extrair_letra(texto, opcoes)
 
         if letra and opcoes[LETRAS.index(letra)]:
+            return texto, letra
+        return texto, None
+
+    def escolher(self, pergunta, opcoes):
+        """Letter of the option the model picked, or None."""
+        return self._perguntar(pergunta, opcoes)[1]
+
+    def responder(self, pergunta, opcoes):
+        """Returns (answer, validated). validated=True when the reply maps to an option."""
+        texto, letra = self._perguntar(pergunta, opcoes)
+
+        if letra:
             return " ".join(opcoes[LETRAS.index(letra)].split()), True
 
         return texto, False
