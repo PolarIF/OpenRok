@@ -61,6 +61,7 @@ class Vigia:
         self.geometria = None  # (game client, areas) of the last cycle with the game in front
         self.calibracao = None  # user-calibrated area, see geometria.areas_para
         self._ultimas_cores = None
+        self._ultima_tela = None
         self._esquecer_pergunta()
         self._numero = 0  # identifies the current question for late AI replies
 
@@ -113,7 +114,12 @@ class Vigia:
         envoltorio = areas.envoltorio()
         imagem = self.captura.capturar(envoltorio)
 
-        if not eh_tela_de_perguntas([s.recortar(imagem, envoltorio) for s in areas.sondas]):
+        tela = eh_tela_de_perguntas([s.recortar(imagem, envoltorio) for s in areas.sondas])
+        if tela != self._ultima_tela:
+            registro.debug("tela de perguntas: %s", "sim" if tela else "não")
+            self._ultima_tela = tela
+
+        if not tela:
             self._reemitir = True
             self._mudar(Estado.OUTRA_TELA, OutraTela())
             return
@@ -152,6 +158,8 @@ class Vigia:
         if self._candidato is not None and distancia(h, self._candidato) <= LIMITE_MESMA:
             self._resolver(h, areas, imagem, envoltorio, inicio)
         else:
+            if self._candidato is not None:
+                registro.debug("pergunta ainda mexendo (distância %.3f)", distancia(h, self._candidato))
             self._candidato = h
 
     # ------------------------------------------------------
@@ -264,7 +272,10 @@ class Vigia:
                     self.ciclo()
                 except Exception:
                     registro.exception("erro no ciclo")  # a bad frame must not kill the watcher
-                self._parar.wait(max(0.0, intervalo - (time.perf_counter() - inicio)))
+                duracao = time.perf_counter() - inicio
+                if duracao > 0.5:
+                    registro.debug("ciclo lento: %.2f s (estado %s)", duracao, self.estado)
+                self._parar.wait(max(0.0, intervalo - duracao))
 
         self._thread = threading.Thread(target=laco, daemon=True)
         self._thread.start()
