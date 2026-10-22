@@ -30,6 +30,10 @@ from openrok.tela import LIMITE_MESMA, EstadoOpcao, distancia, eh_tela_de_pergun
 
 registro = logging.getLogger("openrok.vigia")
 
+# The reward icon covers the question for ~0.3 s when it appears, and that
+# first read is garbled: the AI is asked only if the question holds this long
+ESPERA_IA = 0.5
+
 LETRA_COR = {EstadoOpcao.NEUTRA: "n", EstadoOpcao.VERDE: "G", EstadoOpcao.VERMELHA: "R", EstadoOpcao.COLORIDA: "c"}
 
 
@@ -269,6 +273,11 @@ class Vigia:
         ia = self.ia  # the provider may be switched while this call waits in line
 
         def trabalho():
+            self._parar.wait(ESPERA_IA)
+            if numero != self._numero:
+                registro.info("ia não chamada: a pergunta mudou em menos de %.1f s", ESPERA_IA)
+                return
+
             try:
                 letra = ia.escolher(pergunta, opcoes)
             except Exception as erro:
