@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import time
@@ -8,6 +9,8 @@ from rapidfuzz import fuzz, process
 
 from openrok.idiomas import IDIOMAS, LETRAS
 from openrok.texto import normalizar
+
+registro = logging.getLogger("openrok.ia")  # what goes to the AI and comes back, never the key
 
 
 # ==========================================================
@@ -147,6 +150,8 @@ class ClienteIA:
             raise FalhaIA(self._texto("ia_sem_conexao", base=self.base_url)) from None
 
         status = resposta.status_code
+        if status >= 400:
+            registro.info("ia %s %s -> %s: %s", metodo, caminho, status, resposta.text[:300])
         if status in (401, 403) or (status == 400 and "api key" in resposta.text.lower().replace("_", " ")):
             raise FalhaIA(self._texto("ia_chave_invalida"))
         if status == 429:
@@ -159,6 +164,7 @@ class ClienteIA:
         try:
             return resposta.json()
         except ValueError:
+            registro.info("ia <- não é JSON: %s", resposta.text[:300])
             raise FalhaIA(self._texto("ia_resposta_invalida")) from None
 
     def _modelo(self):
@@ -176,8 +182,10 @@ class ClienteIA:
         texto_opcoes = "\n".join(f"{letra}) {opcao}" for letra, opcao in zip(LETRAS, opcoes) if opcao)
         prompt = IDIOMAS[self.idioma]["prompt"].format(pergunta=" ".join(pergunta.split()), opcoes=texto_opcoes)
 
+        modelo = self._modelo()
+        registro.info("ia -> %s %s: %r", self.preset.id, modelo, prompt)
         dados = self._pedir("POST", "/chat/completions", json={
-            "model": self._modelo(),
+            "model": modelo,
             "messages": [{"role": "user", "content": prompt}],
             **self.preset.corpo,
         })
@@ -187,10 +195,13 @@ class ClienteIA:
         except (KeyError, IndexError, TypeError):
             texto = None
         if not isinstance(texto, str):
+            registro.info("ia <- sem texto: %s", str(dados)[:300])
             raise FalhaIA(self._texto("ia_resposta_invalida"))
 
         letra = extrair_letra(texto.strip(), opcoes)
-        return letra if letra and opcoes[LETRAS.index(letra)] else None
+        letra = letra if letra and opcoes[LETRAS.index(letra)] else None
+        registro.info("ia <- %r letra=%s", texto, letra)
+        return letra
 
     def escolher(self, pergunta, opcoes):
         """Letter of the option the model picked, or None."""
