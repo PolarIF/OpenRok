@@ -251,7 +251,8 @@ class Vigia:
             self._emitir_da_pergunta(Sugestao(letra, origem, (time.perf_counter() - inicio) * 1000))
             return
 
-        if self.ia is not None:
+        # A loading screen can pass for the question screen for an instant: no text, no AI call
+        if self.ia is not None and pergunta.strip():
             self._perguntar_ia(pergunta, opcoes, inicio)
         elif resposta:
             self._emitir_da_pergunta(SemResposta(f"resposta do banco não está entre as opções: {resposta}"))

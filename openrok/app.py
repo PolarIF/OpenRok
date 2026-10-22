@@ -203,6 +203,9 @@ def main():
     arquivo_log.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=logging.DEBUG if os.environ.get("OPENROK_DEBUG") else logging.INFO,
                         handlers=[arquivo_log])
+    # Every connection step of the AI client would flood the debug log
+    for nome in ("httpx", "httpcore"):
+        logging.getLogger(nome).setLevel(logging.WARNING)
 
     config = Config.carregar(pasta / "config.json")
     # On Wayland the game window's own pixels sometimes freeze for seconds
