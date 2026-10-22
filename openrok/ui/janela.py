@@ -2,9 +2,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon, QTabWidget
 
+from openrok.cofre import CofreMemoria
 from openrok.idiomas import IDIOMAS
 from openrok.ui.aba_ajustes import AbaAjustes
 from openrok.ui.aba_banco import AbaBanco
+from openrok.ui.aba_ia import AbaIA
 from openrok.ui.aba_inicio import AbaInicio
 from openrok.ui.logo import icone
 from openrok.ui.tema import QSS
@@ -27,11 +29,13 @@ class JanelaPrincipal(QMainWindow):
     iniciar_mudou = Signal(bool)
     painel_no_jogo_mudou = Signal(bool)
     calibrar_pedido = Signal()
+    ia_mudou = Signal()
     sair_pedido = Signal()
 
-    def __init__(self, config, conhecimento, salvar_config):
+    def __init__(self, config, conhecimento, salvar_config, cofre=None):
         super().__init__()
         self.config = config
+        self.cofre = cofre or CofreMemoria()
         self.conhecimento = conhecimento
         self.salvar_config = salvar_config
         self._saindo = False
@@ -54,6 +58,8 @@ class JanelaPrincipal(QMainWindow):
         self.inicio = AbaInicio(t, self.config, len(self.conhecimento))
         self.banco = AbaBanco(t, self.conhecimento, lambda: self.inicio.atualizar_total(len(self.conhecimento)))
         self.ajustes = AbaAjustes(t, self.config)
+        self.ia = AbaIA(t, self.config, self.cofre, self.conhecimento, self.salvar_config)
+        self.ia.ia_mudou.connect(self.ia_mudou)
 
         self.inicio.marcar_no_jogo_mudou.connect(lambda v: self._mudar("marcar_no_jogo", v, self.marcar_no_jogo_mudou))
         self.inicio.usar_ia_mudou.connect(lambda v: self._mudar("usar_ia", v, self.usar_ia_mudou))
@@ -66,6 +72,7 @@ class JanelaPrincipal(QMainWindow):
 
         abas = QTabWidget()
         abas.addTab(self.inicio, t["aba_inicio"])
+        abas.addTab(self.ia, t["aba_ia"])
         abas.addTab(self.banco, t["aba_banco"])
         abas.addTab(self.ajustes, t["aba_ajustes"])
         self.setCentralWidget(abas)
