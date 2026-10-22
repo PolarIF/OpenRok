@@ -109,18 +109,6 @@ def test_extrair_letra(resposta, esperado):
 
 
 # ----------------------------------------------------------
-# AI factory
-# ----------------------------------------------------------
-
-def test_sem_chave_nao_cria_ia(monkeypatch):
-    from openrok.app import fabrica_ia
-
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-    assert fabrica_ia("pt") is None
-
-
-# ----------------------------------------------------------
 # Real data files
 # ----------------------------------------------------------
 

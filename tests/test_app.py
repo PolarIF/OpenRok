@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 
 from openrok.app import Aplicacao
@@ -14,10 +16,10 @@ from tests.fixtures import carregar_print
 def montar(qtbot, tmp_path):
     criadas = []
 
-    def criar(**config):
+    def criar(ia_fabrica=lambda idioma: None, sem_banco=False, **config):
         app = Aplicacao(Config(idioma="pt", **config), JanelaFixa(Ret(0, 0, 1920, 1080)),
                         CapturaDeQuadro(carregar_print("q1_go")), Armazem(":memory:"),
-                        tmp_path / "config.json", lambda idioma: None)
+                        tmp_path / "config.json", ia_fabrica, sem_banco=sem_banco)
         app.iniciar()
         qtbot.addWidget(app.janela)
         qtbot.addWidget(app.overlay)
@@ -96,3 +98,72 @@ def test_modo_sem_banco(qtbot, tmp_path):
         assert app.conhecimento.armazem is not armazem_real
     finally:
         app.encerrar()
+
+
+def outra_pergunta():
+    """q1 with other text in the question area: a new question with no colors."""
+    from PIL import ImageDraw
+
+    from openrok.geometria import areas_para
+
+    quadro = carregar_print("q1_go").copy()
+    pergunta = areas_para(Ret(0, 0, 1920, 1080)).pergunta
+    desenho = ImageDraw.Draw(quadro)
+    desenho.rectangle((pergunta.x, pergunta.y, pergunta.x + pergunta.w, pergunta.y + pergunta.h), fill=(222, 190, 140))
+    desenho.text((pergunta.x + 20, pergunta.y + 20), "Qual foi o primeiro imperador romano?", fill=(40, 30, 20))
+    return quadro
+
+
+class IAFalsa:
+    def __init__(self, letra=None, liberar=None):
+        self.letra, self.liberar, self.chamadas = letra, liberar, 0
+
+    def escolher(self, pergunta, opcoes):
+        self.chamadas += 1
+        if self.liberar is not None:
+            self.liberar.wait(5)
+        return self.letra
+
+
+def test_ia_mudou_troca_o_cliente_sem_reiniciar(montar):
+    criadas = []
+
+    def fabrica(idioma):
+        criadas.append(IAFalsa())
+        return criadas[-1]
+
+    app = montar(ia_fabrica=fabrica)
+    vigia = app.vigia
+
+    app.janela.ia_mudou.emit()
+
+    assert app.vigia is vigia
+    assert app.vigia.ia is criadas[-1] and len(criadas) == 2
+
+
+def test_ia_mudou_com_ia_desligada(montar):
+    app = montar(ia_fabrica=lambda idioma: IAFalsa(), usar_ia=False)
+
+    app.janela.ia_mudou.emit()
+
+    assert app.vigia.ia is None
+    assert app._ia is not None
+
+
+def test_resposta_atrasada_da_ia_antiga_e_descartada(montar, qtbot):
+    liberar = threading.Event()
+    antiga, nova = IAFalsa("D", liberar), IAFalsa(None)
+    fabricas = iter([antiga, nova])
+    app = montar(ia_fabrica=lambda idioma: next(fabricas), sem_banco=True)
+    sugestoes = []
+    app.ponte.evento.connect(lambda e: isinstance(e, Sugestao) and sugestoes.append(e))
+    qtbot.waitUntil(lambda: antiga.chamadas == 1, timeout=8000)
+
+    app.janela.ia_mudou.emit()
+    app.captura.quadro = outra_pergunta()
+    qtbot.waitUntil(lambda: app.vigia._numero == 2, timeout=8000)
+    liberar.set()
+    qtbot.waitUntil(lambda: nova.chamadas == 1, timeout=8000)
+    qtbot.wait(200)
+
+    assert sugestoes == []

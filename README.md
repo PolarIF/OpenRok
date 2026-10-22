@@ -31,7 +31,7 @@ OpenRok watches the game on its own: there is nothing to click.
 4. **Finds the answer:**
    - first in an image cache of questions already seen on this computer, which skips the OCR;
    - then in the question database, using fuzzy matching ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)) that tolerates OCR errors without mixing up questions that differ in one word;
-   - only if both fail, it asks **Google Gemini** for the letter (optional).
+   - only if both fail, it asks an **AI** from the provider you choose for the letter (optional).
 5. **Marks it in the game:** a glowing outline around the right option. It is **green** when the answer comes from the database and **yellow** when it is an AI suggestion. Clicks go straight through the outline to the game.
 6. **Learns from the game.** When the game shows the official answer in green, OpenRok stores *that* answer in a local SQLite database. Nothing the AI says is saved unless the game confirms it, and wrong database answers are corrected automatically (with undo).
 
@@ -58,7 +58,7 @@ Switch in **Settings**. The default follows the system language.
 - **Windows** or **Linux**:
   - On Linux the game runs through Wine (e.g. [Rise-of-Kingdoms-Linux-Installer](https://github.com/limeskat/Rise-of-Kingdoms-Linux-Installer)). OpenRok works on X11 and on Wayland desktops through XWayland; it was tested on KDE Plasma.
   - The Windows build is written but **not tested yet**.
-- A **Google Gemini API key** is optional, for questions that are not in the database.
+- An **AI** is optional, for questions that are not in the database: Gemini, Groq and OpenRouter have free plans, and Ollama/LM Studio run on your computer.
 
 The Tesseract `eng`/`por` models ship inside the app.
 
@@ -91,11 +91,18 @@ Closing the window keeps OpenRok in the system tray; use **Quit** there to exit.
 
 ### AI (optional)
 
-```bash
-export GEMINI_API_KEY="your-key"     # Windows: setx GEMINI_API_KEY "your-key"
-```
+In the **AI** tab, pick a provider, paste the key and click **Test**: OpenRok asks a known question from the database and shows whether the AI got it right and how long it took. The key is kept in the system vault (Credential Manager on Windows, KWallet/Secret Service on Linux), never in a file.
 
-The model can be changed with `OPENROK_MODEL`. Choosing any provider from inside the app is coming next.
+| Provider | Free | Notes |
+|---|---|---|
+| Google Gemini | yes | key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Groq | yes | key at [console.groq.com/keys](https://console.groq.com/keys) |
+| OpenRouter | yes | `:free` models; key at [openrouter.ai/keys](https://openrouter.ai/keys) |
+| Ollama / LM Studio | yes | run on your computer, no key |
+| OpenAI, Anthropic, DeepSeek | no | pay per use |
+| Custom | — | any server compatible with the OpenAI API |
+
+The **Model** field takes any model of the provider; empty means the default. The AI only suggests (yellow outline) and never writes to the database. An existing `GEMINI_API_KEY` keeps working with Gemini.
 
 ### Building the executable
 
@@ -123,6 +130,7 @@ OpenRok/
 │   ├── ocr.py          # Tesseract (bundled models in tessdata/)
 │   ├── conhecimento.py # Database + what this computer learned (SQLite, armazem.py)
 │   ├── plataforma.py   # Game window and capture (X11 on Linux, Win32 on Windows)
+│   ├── ia.py           # AI providers (OpenAI-compatible); the key lives in the vault (cofre.py)
 │   └── ui/             # Qt interface: tabs, overlay, calibration
 ├── data/               # Question/answer databases (EN, PT)
 ├── tests/              # Tests, with real screenshots and video in tests/fixtures/
@@ -139,7 +147,7 @@ OpenRok/
 - **RapidFuzz** for fuzzy matching
 - **SQLite** for what OpenRok learns
 - **python-xlib** (Linux) and **mss** (Windows) for window capture
-- **Google Gemini** as an optional AI fallback
+- **httpx** for the optional AI (any OpenAI-compatible provider) and **keyring** to store the key
 - **pytest** + **pytest-qt** for tests, and **PyInstaller** for packaging
 
 ---
