@@ -94,6 +94,8 @@ class Aplicacao:
         self.vigia = Vigia(self.janela_jogo, self.captura, self.ocr, self.conhecimento, self.ponte.emitir,
                            ia=self._ia if self.config.usar_ia else None)
         self.vigia.calibracao = self.config.calibracao
+        if os.environ.get("OPENROK_DEBUG"):
+            self.vigia.pasta_quadros = pasta_dados() / "quadros"
         self.vigia.iniciar()
 
     def _parar_vigia(self):
