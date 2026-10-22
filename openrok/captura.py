@@ -41,8 +41,9 @@ class CapturaPortal:
     streams what the compositor shows. It needs a running QApplication, and
     the desktop asks the user which screen to share on start.
 
-    It captures the screen, our own overlay included: the outline is drawn
-    outside the option boxes, and the watcher reads colors inside them.
+    Opt-in (OPENROK_CAPTURA=portal). It captures the screen, our own overlay
+    included: the outline's glow covers the question-screen probes between
+    the boxes, so the watcher flickers in and out of the question.
     """
 
     def __init__(self, iniciar=True):
