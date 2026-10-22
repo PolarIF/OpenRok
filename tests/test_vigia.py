@@ -219,6 +219,22 @@ def test_ia_trocada_com_trabalho_na_fila(ocr, conhecimento):
     assert [e.letra for e in eventos if isinstance(e, Sugestao)] == ["B"]
 
 
+def test_pergunta_sem_texto_nao_vai_para_a_ia(ocr, conhecimento):
+    chamadas = []
+
+    class IAContada:
+        def escolher(self, pergunta, opcoes):
+            chamadas.append(pergunta)
+            return "A"
+
+    vigia, captura, _, eventos = montar(ocr, conhecimento, ia=IAContada())
+    rodar(vigia, captura, pergunta_inexistente(""), ciclos=2)
+    vigia.parar()
+
+    assert chamadas == []
+    assert isinstance(eventos[-1], SemResposta)
+
+
 def test_ia_responde_pergunta_fora_do_banco(ocr, conhecimento):
     class IAFixa:
         def escolher(self, pergunta, opcoes):
