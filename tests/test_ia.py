@@ -233,3 +233,25 @@ def test_pergunta_de_teste_com_banco_pequeno():
         pergunta_de_teste([], [], random.Random(1))
     with pytest.raises(ValueError):
         pergunta_de_teste(["a", "b", "c"], ["x", "y", "z"], random.Random(1))
+
+
+def test_log_tem_o_que_foi_enviado_e_recebido(caplog):
+    caplog.set_level("INFO", logger="openrok.ia")
+    ia = cliente(resposta=resposta_com("Acho que é a B) Achilles"), chave="segredo-123")
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    texto = caplog.text
+    assert "gpt-6-luna" in texto and "Quem matou Heitor?" in texto and "B) Achilles" in texto
+    assert "Acho que é a B) Achilles" in texto
+    assert "letra=B" in texto
+    assert "segredo-123" not in texto
+
+
+def test_log_do_erro_tem_status_e_corpo(caplog):
+    caplog.set_level("INFO", logger="openrok.ia")
+
+    with pytest.raises(FalhaIA):
+        cliente(status=500, corpo=b'{"error": "servidor caiu"}').escolher("Quem matou Heitor?", OPCOES)
+
+    assert "500" in caplog.text and "servidor caiu" in caplog.text
