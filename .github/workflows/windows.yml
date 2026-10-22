@@ -2,10 +2,15 @@ name: Windows
 
 # Tests on Windows and builds OpenRok-windows.zip (OpenRok\OpenRok.exe).
 # PyInstaller only builds for the system it runs on, so the .exe is made here.
+# A version tag (v2.0.0-alpha.1...) also publishes the ZIP as a pre-release.
 on:
   push:
     branches: [main, windows-pacote]
+    tags: ["v*"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -50,3 +55,12 @@ jobs:
         with:
           name: OpenRok-windows
           path: OpenRok-windows.zip
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create ${{ github.ref_name }} OpenRok-windows.zip --prerelease
+          --title "OpenRok ${{ github.ref_name }}"
+          --notes "Teste no Windows: extraia o ZIP e abra OpenRok\OpenRok.exe. Na primeira vez o Windows avisa que o app não tem assinatura: Mais informações -> Executar assim mesmo."
