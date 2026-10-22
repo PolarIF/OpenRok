@@ -139,3 +139,20 @@ def test_ordem_das_abas(janela):
     nomes = [abas.tabText(i) for i in range(abas.count())]
     t = IDIOMAS["pt"]["textos"]
     assert nomes == [t["aba_inicio"], t["aba_ia"], t["aba_banco"], t["aba_ajustes"]]
+
+
+def test_vigiar_comeca_desligado_e_avisa(janela, qtbot):
+    assert janela.inicio.vigiar.isChecked() is False
+
+    with qtbot.waitSignal(janela.vigiar_mudou) as sinal:
+        janela.inicio.vigiar.setChecked(True)
+    assert sinal.args == [True]
+
+
+def test_definir_vigiando_nao_reemite(janela):
+    emitidos = []
+    janela.vigiar_mudou.connect(emitidos.append)
+
+    janela.definir_vigiando(True)
+
+    assert janela.inicio.vigiar.isChecked() and emitidos == []

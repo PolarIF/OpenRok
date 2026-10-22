@@ -80,3 +80,54 @@ def test_posicao_salva_e_usada(qtbot):
 
     assert abs(widget.x() + widget.width() / 2 - 480) <= 1
     assert widget.y() == 540
+
+
+def clicar_no_botao(painel, qtbot, mover=QPoint(0, 0)):
+    centro = painel.area_botao().center()
+    qtbot.mousePress(painel, Qt.LeftButton, pos=centro)
+    qtbot.mouseMove(painel, centro + mover)
+    qtbot.mouseRelease(painel, Qt.LeftButton, pos=centro + mover)
+
+
+def test_pausado_aparece_com_o_jogo(painel):
+    painel.definir_pausado(True)
+    painel.aplicar(JogoEncontrado(), GEOMETRIA)
+
+    assert painel.isVisible() and "Pausado" in painel.texto
+
+
+def test_clicar_no_botao_alterna(painel, qtbot):
+    painel.definir_pausado(True)
+    painel.aplicar(JogoEncontrado(), GEOMETRIA)
+
+    with qtbot.waitSignal(painel.vigia_alternado) as sinal:
+        clicar_no_botao(painel, qtbot)
+    assert sinal.args == [True]
+    assert painel.pausado is False and "Vigiando" in painel.texto
+
+    with qtbot.waitSignal(painel.vigia_alternado) as sinal:
+        clicar_no_botao(painel, qtbot)
+    assert sinal.args == [False]
+    assert "Pausado" in painel.texto
+
+
+def test_arrastar_pelo_botao_nao_alterna(painel, qtbot):
+    painel.definir_pausado(True)
+    painel.aplicar(JogoEncontrado(), GEOMETRIA)
+    alternados = []
+    painel.vigia_alternado.connect(alternados.append)
+
+    with qtbot.waitSignal(painel.movido):
+        clicar_no_botao(painel, qtbot, mover=QPoint(-60, 40))
+
+    assert alternados == [] and painel.pausado is True
+
+
+def test_pausar_esconde_a_sugestao(painel):
+    painel.aplicar(JogoEncontrado(), GEOMETRIA)
+    painel.aplicar(PerguntaDetectada("Quantas tropas?", ["5", "4", "2", "3"]), GEOMETRIA)
+    painel.aplicar(Sugestao("B", "banco", 60), GEOMETRIA)
+
+    painel.definir_pausado(True)
+
+    assert "Pausado" in painel.texto and "B · 4" not in painel.texto

@@ -51,6 +51,7 @@ class Aplicacao:
         self.caminho_config = caminho_config
         self.ia_fabrica = ia_fabrica
         self.cofre = cofre or CofreMemoria()
+        self.vigiando = False  # always opens paused: the user starts it when the event is on
 
         self.vigia = None
         self.ponte = None
@@ -69,9 +70,12 @@ class Aplicacao:
         self.overlay.definir_opacidade(self.config.opacidade)
         self.painel = Painel(IDIOMAS[self.config.idioma]["textos"], self.config.painel_posicao)
         self.painel.movido.connect(self._painel_movido)
+        self.painel.definir_pausado(True)
+        self.painel.vigia_alternado.connect(self.definir_vigiando)
 
         self.janela.idioma_mudou.connect(self.trocar_idioma)
         self.janela.opacidade_mudou.connect(self.overlay.definir_opacidade)
+        self.janela.vigiar_mudou.connect(self.definir_vigiando)
         self.janela.usar_ia_mudou.connect(self._usar_ia)
         self.janela.ia_mudou.connect(self._ia_mudou)
         self.janela.marcar_no_jogo_mudou.connect(lambda ativo: ativo or self.overlay.esconder())
@@ -98,6 +102,7 @@ class Aplicacao:
         self.vigia = Vigia(self.janela_jogo, self.captura, self.ocr, self.conhecimento, self.ponte.emitir,
                            ia=self._ia if self.config.usar_ia else None)
         self.vigia.calibracao = self.config.calibracao
+        self.vigia.pausado = not self.vigiando
         if os.environ.get("OPENROK_DEBUG"):
             self.vigia.pasta_quadros = pasta_dados() / "quadros"
         self.vigia.iniciar()
@@ -142,6 +147,15 @@ class Aplicacao:
         self.config.painel_posicao = [fx, fy]
         self.salvar_config()
 
+    def definir_vigiando(self, vigiando):
+        self.vigiando = vigiando
+        self.vigia.pausado = not vigiando
+        if self.painel.pausado == vigiando:
+            self.painel.definir_pausado(not vigiando)
+        self.janela.definir_vigiando(vigiando)
+        if not vigiando:
+            self.overlay.esconder()
+
     def _usar_ia(self, ativo):
         self.vigia.ia = self._ia if ativo else None
 
@@ -168,6 +182,7 @@ class Aplicacao:
         self.painel.textos = IDIOMAS[idioma]["textos"]
         self.painel.hide()
         self.janela.trocar_conhecimento(self.conhecimento)
+        self.janela.definir_vigiando(self.vigiando)
 
         self._iniciar_vigia()
 
