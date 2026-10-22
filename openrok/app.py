@@ -200,7 +200,12 @@ def main():
                         handlers=[arquivo_log])
 
     config = Config.carregar(pasta / "config.json")
-    janela_jogo, captura = plataforma()
+    # On Wayland the game window's own pixels sometimes freeze for seconds
+    # (XWayland + Wine); the portal shows what is really on screen.
+    # OPENROK_CAPTURA=x11 goes back to reading the window, for diagnosis.
+    portal = os.environ.get("XDG_SESSION_TYPE") == "wayland" and os.environ.get("OPENROK_CAPTURA") != "x11"
+    logging.getLogger("openrok.app").info("captura: %s", "portal" if portal else "janela")
+    janela_jogo, captura = plataforma(portal=portal)
 
     aplicacao = Aplicacao(config, janela_jogo, captura, Armazem(pasta / "openrok.db"), pasta / "config.json", fabrica_ia,
                           sem_banco=bool(os.environ.get("OPENROK_SEM_BANCO")))
