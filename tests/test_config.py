@@ -51,3 +51,19 @@ def test_painel_padrao_e_posicao(tmp_path):
 
     caminho.write_text('{"painel_posicao": "topo"}', encoding="utf-8")
     assert Config.carregar(caminho).painel_posicao is None
+
+
+def test_campos_da_ia(tmp_path):
+    caminho = tmp_path / "config.json"
+    config = Config(ia_provedor="groq", ia_modelo="llama", ia_base_url="http://x/v1")
+    config.salvar(caminho)
+
+    assert Config.carregar(caminho) == config
+    assert (Config().ia_provedor, Config().ia_modelo, Config().ia_base_url) == ("gemini", "", "")
+
+
+def test_provedor_com_tipo_errado_cai_no_padrao(tmp_path):
+    caminho = tmp_path / "config.json"
+    caminho.write_text('{"ia_provedor": 3}', encoding="utf-8")
+
+    assert Config.carregar(caminho).ia_provedor == "gemini"

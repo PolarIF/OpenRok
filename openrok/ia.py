@@ -1,3 +1,4 @@
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -203,3 +204,20 @@ def pergunta_de_teste(perguntas, respostas, aleatorio):
     opcoes = aleatorio.sample(outras, 3) + [certa]
     aleatorio.shuffle(opcoes)
     return perguntas[indice], opcoes, LETRAS[opcoes.index(certa)]
+
+
+def ia_de_config(config, idioma, cofre):
+    """AI client for the provider chosen in the settings, or None when it can't work yet."""
+    escolhido = preset(config.ia_provedor)
+    base_url = config.ia_base_url if escolhido.id == "personalizado" else escolhido.base_url
+    if not base_url:
+        return None
+
+    chave = cofre.ler(escolhido.id)
+    if not chave and escolhido.id == "gemini":
+        # Users of version 1 set the key in the environment
+        chave = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if escolhido.exige_chave and not chave:
+        return None
+
+    return ClienteIA(idioma, escolhido, base_url, config.ia_modelo or escolhido.modelo, chave)
