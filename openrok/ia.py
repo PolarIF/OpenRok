@@ -36,8 +36,10 @@ class Preset:
 PRESETS = [
     Preset("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
            "gemini-3.5-flash-lite", True, True, "https://aistudio.google.com/apikey"),
-    Preset("groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", True, True,
-           "https://console.groq.com/keys"),
+    # A reasoning model: with the default effort it sometimes spends every
+    # token thinking and returns an empty answer (finish_reason "length")
+    Preset("groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-120b", True, True,
+           "https://console.groq.com/keys", {"temperature": 0, "reasoning_effort": "low"}),
     Preset("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "openrouter/free", True, True,
            "https://openrouter.ai/keys"),
     Preset("ollama", "Ollama", "http://localhost:11434/v1", "llama3.2", False, True),
@@ -183,24 +185,31 @@ class ClienteIA:
         prompt = IDIOMAS[self.idioma]["prompt"].format(pergunta=" ".join(pergunta.split()), opcoes=texto_opcoes)
 
         modelo = self._modelo()
+        corpo = self.preset.corpo
+        if modelo != self.preset.modelo:
+            # The preset's extra fields were chosen for its default model: another
+            # model may reject them ("reasoning_effort is not supported")
+            corpo = {k: v for k, v in corpo.items() if k == "temperature"}
+
         registro.info("ia -> %s %s: %r", self.preset.id, modelo, prompt)
         dados = self._pedir("POST", "/chat/completions", json={
             "model": modelo,
             "messages": [{"role": "user", "content": prompt}],
-            **self.preset.corpo,
+            **corpo,
         })
 
         try:
-            texto = dados["choices"][0]["message"]["content"]
+            escolha = dados["choices"][0]
+            texto = escolha["message"]["content"]
         except (KeyError, IndexError, TypeError):
-            texto = None
+            escolha, texto = None, None
         if not isinstance(texto, str):
             registro.info("ia <- sem texto: %s", str(dados)[:300])
             raise FalhaIA(self._texto("ia_resposta_invalida"))
 
         letra = extrair_letra(texto.strip(), opcoes)
         letra = letra if letra and opcoes[LETRAS.index(letra)] else None
-        registro.info("ia <- %r letra=%s", texto, letra)
+        registro.info("ia <- %r letra=%s finish_reason=%s", texto, letra, escolha.get("finish_reason"))
         return letra
 
     def escolher(self, pergunta, opcoes):

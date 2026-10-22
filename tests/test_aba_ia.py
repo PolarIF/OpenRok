@@ -56,7 +56,7 @@ def test_trocar_provedor_grava_e_avisa(qtbot, aba):
         escolher(widget, "groq")
 
     assert widget.config.ia_provedor == "groq" and widget.config.ia_modelo == ""
-    assert widget.modelo.placeholderText() == "openai/gpt-oss-20b"
+    assert widget.modelo.placeholderText() == "openai/gpt-oss-120b"
     assert widget.salvos
 
 
