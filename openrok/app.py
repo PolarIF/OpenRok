@@ -13,7 +13,6 @@ from openrok.caminhos import caminho_csv, pasta_dados
 from openrok.config import Config
 from openrok.conhecimento import Conhecimento
 from openrok.eventos import Aprendido
-from openrok.ia import Gemini
 from openrok.idiomas import IDIOMAS
 from openrok.ocr import MotorOCR
 from openrok.plataforma import plataforma
@@ -180,8 +179,7 @@ class Aplicacao:
 # ==========================================================
 
 def fabrica_ia(idioma):
-    gemini = Gemini(idioma)
-    return gemini if gemini.configurado else None
+    return None  # replaced by ia_de_config once the key vault exists
 
 
 def main():

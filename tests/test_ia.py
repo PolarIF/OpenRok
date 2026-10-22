@@ -1,0 +1,173 @@
+import json
+import random
+
+import httpx
+import pytest
+
+from openrok.ia import PRESETS, ClienteIA, FalhaIA, pergunta_de_teste, preset
+from openrok.idiomas import IDIOMAS
+
+OPCOES = ["Paris", "Achilles", "Ajax", "Priam"]
+T = IDIOMAS["pt"]["textos"]
+
+
+def resposta_com(texto):
+    return {"choices": [{"message": {"role": "assistant", "content": texto}}]}
+
+
+def cliente(id_preset="openai", resposta=None, status=200, chave="chave", base_url=None, modelo=None,
+            excecao=None, corpo=None, modelos=None):
+    """ClienteIA over a MockTransport; the requests it got land in .recebidas."""
+    recebidas = []
+    p = preset(id_preset)
+
+    def responder(requisicao):
+        recebidas.append(requisicao)
+        if excecao is not None:
+            raise excecao("falhou", request=requisicao)
+        if requisicao.method == "GET":
+            return httpx.Response(200, json={"data": [{"id": m} for m in (modelos or [])]})
+        if corpo is not None:
+            return httpx.Response(status, content=corpo)
+        return httpx.Response(status, json=resposta_com("B") if resposta is None else resposta)
+
+    ia = ClienteIA("pt", p, base_url or p.base_url, p.modelo if modelo is None else modelo, chave,
+                   transporte=httpx.MockTransport(responder))
+    ia.recebidas = recebidas
+    return ia
+
+
+def test_requisicao_tem_modelo_prompt_e_corpo_do_preset():
+    ia = cliente("openai")
+
+    ia.escolher("Quem matou Heitor?", ["Paris", "Achilles", "", "Priam"])
+
+    requisicao = ia.recebidas[0]
+    dados = json.loads(requisicao.content)
+    assert str(requisicao.url) == "https://api.openai.com/v1/chat/completions"
+    assert requisicao.headers["Authorization"] == "Bearer chave"
+    assert dados["model"] == "gpt-6-luna"
+    assert dados["temperature"] == 0 and dados["reasoning_effort"] == "none"
+    assert [m["role"] for m in dados["messages"]] == ["user"]
+    prompt = dados["messages"][0]["content"]
+    assert "Quem matou Heitor?" in prompt
+    assert "A) Paris" in prompt and "B) Achilles" in prompt and "D) Priam" in prompt
+    assert "C)" not in prompt
+
+
+def test_anthropic_sem_temperature():
+    ia = cliente("anthropic")
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    assert "temperature" not in json.loads(ia.recebidas[0].content)
+
+
+def test_sem_chave_nao_manda_authorization():
+    ia = cliente("ollama", chave=None)
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    assert "Authorization" not in ia.recebidas[0].headers
+
+
+@pytest.mark.parametrize("texto, opcoes, esperado", [
+    ("B", OPCOES, "B"),
+    ("Resposta: B", OPCOES, "B"),
+    ("não sei", OPCOES, None),
+    ("D", ["Paris", "Achilles", "Ajax", ""], None),
+])
+def test_escolher_devolve_letra(texto, opcoes, esperado):
+    assert cliente(resposta=resposta_com(texto)).escolher("Quem matou Heitor?", opcoes) == esperado
+
+
+@pytest.mark.parametrize("status, corpo, esperado", [
+    (401, b"{}", T["ia_chave_invalida"]),
+    (403, b"{}", T["ia_chave_invalida"]),
+    (400, b'{"error": {"message": "API key not valid"}}', T["ia_chave_invalida"]),
+    (429, b"{}", T["ia_limite"]),
+    (404, b"{}", T["ia_modelo_nao_encontrado"].format(modelo="gpt-6-luna")),
+    (500, b"{}", T["ia_erro_http"].format(status=500)),
+])
+def test_erros_viram_falha_ia(status, corpo, esperado):
+    with pytest.raises(FalhaIA) as erro:
+        cliente(status=status, corpo=corpo).escolher("Quem matou Heitor?", OPCOES)
+
+    assert str(erro.value) == esperado
+
+
+def test_timeout_e_conexao():
+    with pytest.raises(FalhaIA) as erro:
+        cliente(excecao=httpx.ReadTimeout).escolher("Quem matou Heitor?", OPCOES)
+    assert str(erro.value) == T["ia_demorou"]
+
+    with pytest.raises(FalhaIA) as erro:
+        cliente("ollama", chave=None, excecao=httpx.ConnectError).escolher("Quem matou Heitor?", OPCOES)
+    assert str(erro.value) == T["ia_sem_conexao"].format(base="http://localhost:11434/v1")
+
+
+@pytest.mark.parametrize("corpo", [
+    b"{}",
+    b'{"choices": []}',
+    b'{"choices": [{"message": {"content": null}}]}',
+    b"<html>nada</html>",
+])
+def test_resposta_invalida(corpo):
+    with pytest.raises(FalhaIA) as erro:
+        cliente(corpo=corpo).escolher("Quem matou Heitor?", OPCOES)
+
+    assert str(erro.value) == T["ia_resposta_invalida"]
+
+
+def test_modelo_vazio_usa_o_primeiro_carregado():
+    ia = cliente("lmstudio", chave=None, modelo="", modelos=["qwen3-4b", "outro"])
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    metodos = [(r.method, r.url.path) for r in ia.recebidas]
+    assert metodos.count(("GET", "/v1/models")) == 1
+    assert all(json.loads(r.content)["model"] == "qwen3-4b" for r in ia.recebidas if r.method == "POST")
+
+
+def test_modelo_vazio_sem_modelos_carregados():
+    with pytest.raises(FalhaIA) as erro:
+        cliente("lmstudio", chave=None, modelo="", modelos=[]).escolher("Quem matou Heitor?", OPCOES)
+
+    assert str(erro.value) == T["ia_modelo_nao_encontrado"].format(modelo="")
+
+
+def test_base_url_com_barra_no_fim():
+    ia = cliente("personalizado", base_url="http://x/v1/", modelo="m")
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    assert str(ia.recebidas[0].url) == "http://x/v1/chat/completions"
+
+
+def test_testar_mede_tempo_e_acerto():
+    certo = cliente(resposta=resposta_com("C")).testar("Quem matou Heitor?", OPCOES, "C")
+    assert certo.acertou is True and certo.tempo_ms >= 0
+
+    errado = cliente(resposta=resposta_com("A")).testar("Quem matou Heitor?", OPCOES, "C")
+    assert errado.acertou is False and errado.letra == "A" and errado.correta == "C"
+
+
+def test_pergunta_de_teste():
+    perguntas = [f"Pergunta {i}?" for i in range(10)]
+    respostas = [f"Resposta {i}" for i in range(10)]
+
+    pergunta, opcoes, letra = pergunta_de_teste(perguntas, respostas, random.Random(1))
+
+    indice = perguntas.index(pergunta)
+    assert len(opcoes) == 4 and len(set(opcoes)) == 4
+    assert opcoes["ABCD".index(letra)] == respostas[indice]
+    assert all(o in respostas and o != respostas[indice] for i, o in enumerate(opcoes) if "ABCD"[i] != letra)
+
+
+def test_presets():
+    assert [p.id for p in PRESETS] == ["gemini", "groq", "openrouter", "ollama", "lmstudio", "openai",
+                                       "anthropic", "deepseek", "personalizado"]
+    assert preset("xyz") is PRESETS[0]
+    assert all(p.link_chave.startswith("https://") for p in PRESETS if p.exige_chave)
+    assert preset("deepseek").base_url == "https://api.deepseek.com"
