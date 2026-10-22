@@ -10,9 +10,11 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from openrok.armazem import Armazem
 from openrok.autostart import ativar_inicio
 from openrok.caminhos import caminho_csv, pasta_dados
+from openrok.cofre import Cofre, CofreMemoria
 from openrok.config import Config
 from openrok.conhecimento import Conhecimento
 from openrok.eventos import Aprendido
+from openrok.ia import ia_de_config
 from openrok.idiomas import IDIOMAS
 from openrok.ocr import MotorOCR
 from openrok.plataforma import plataforma
@@ -37,7 +39,8 @@ from openrok.vigia import Vigia
 
 class Aplicacao:
 
-    def __init__(self, config, janela_jogo, captura, armazem, caminho_config, ia_fabrica, sem_banco=False):
+    def __init__(self, config, janela_jogo, captura, armazem, caminho_config, ia_fabrica, sem_banco=False,
+                 cofre=None):
         self.config = config
         self.janela_jogo = janela_jogo
         self.captura = captura
@@ -47,6 +50,7 @@ class Aplicacao:
         self.armazem = Armazem(":memory:") if sem_banco else armazem
         self.caminho_config = caminho_config
         self.ia_fabrica = ia_fabrica
+        self.cofre = cofre or CofreMemoria()
 
         self.vigia = None
         self.ponte = None
@@ -58,7 +62,7 @@ class Aplicacao:
     def iniciar(self):
         self.conhecimento, self.ocr, self._ia = self._carregar_idioma(self.config.idioma)
 
-        self.janela = JanelaPrincipal(self.config, self.conhecimento, self.salvar_config)
+        self.janela = JanelaPrincipal(self.config, self.conhecimento, self.salvar_config, self.cofre)
         if self.sem_banco:
             self.janela.setWindowTitle("OpenRok [diagnóstico: sem banco]")
         self.overlay = Overlay(IDIOMAS[self.config.idioma]["textos"])
@@ -69,6 +73,7 @@ class Aplicacao:
         self.janela.idioma_mudou.connect(self.trocar_idioma)
         self.janela.opacidade_mudou.connect(self.overlay.definir_opacidade)
         self.janela.usar_ia_mudou.connect(self._usar_ia)
+        self.janela.ia_mudou.connect(self._ia_mudou)
         self.janela.marcar_no_jogo_mudou.connect(lambda ativo: ativo or self.overlay.esconder())
         self.janela.iniciar_mudou.connect(self._iniciar_com_sistema)
         self.janela.painel_no_jogo_mudou.connect(lambda ativo: ativo or self.painel.hide())
@@ -140,6 +145,12 @@ class Aplicacao:
     def _usar_ia(self, ativo):
         self.vigia.ia = self._ia if ativo else None
 
+    def _ia_mudou(self):
+        # New provider, key or model: the next question already uses it.
+        # A late reply from the old client is dropped by the watcher (question number)
+        self._ia = self.ia_fabrica(self.config.idioma)
+        self._usar_ia(self.config.usar_ia)
+
     def _iniciar_com_sistema(self, ativo):
         try:
             ativar_inicio(ativo)
@@ -178,10 +189,6 @@ class Aplicacao:
 # ENTRY POINT
 # ==========================================================
 
-def fabrica_ia(idioma):
-    return None  # replaced by ia_de_config once the key vault exists
-
-
 def main():
     if sys.platform.startswith("linux"):
         # The game runs on XWayland: the overlay must live there too,
@@ -205,8 +212,10 @@ def main():
     logging.getLogger("openrok.app").info("captura: %s", "portal" if portal else "janela")
     janela_jogo, captura = plataforma(portal=portal)
 
-    aplicacao = Aplicacao(config, janela_jogo, captura, Armazem(pasta / "openrok.db"), pasta / "config.json", fabrica_ia,
-                          sem_banco=bool(os.environ.get("OPENROK_SEM_BANCO")))
+    cofre = Cofre()
+    aplicacao = Aplicacao(config, janela_jogo, captura, Armazem(pasta / "openrok.db"), pasta / "config.json",
+                          lambda idioma: ia_de_config(config, idioma, cofre),
+                          sem_banco=bool(os.environ.get("OPENROK_SEM_BANCO")), cofre=cofre)
     aplicacao.iniciar()
     aplicacao.janela.show()
 

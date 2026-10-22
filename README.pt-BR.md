@@ -31,7 +31,7 @@ O OpenRok vigia o jogo sozinho: não há nada para clicar.
 4. **Acha a resposta:**
    - primeiro num cache de imagens de perguntas já vistas neste computador, que pula o OCR;
    - depois no banco de perguntas, com busca aproximada ([RapidFuzz](https://github.com/rapidfuzz/RapidFuzz)) que tolera erros do OCR sem confundir perguntas que diferem em uma palavra;
-   - só se os dois falharem, pergunta a letra ao **Google Gemini** (opcional).
+   - só se os dois falharem, pergunta a letra a uma **IA** do provedor que você escolher (opcional).
 5. **Marca no jogo:** um contorno brilhante em volta da opção certa. Ele é **verde** quando a resposta vem do banco e **amarelo** quando é sugestão da IA. O clique atravessa o contorno e chega ao jogo.
 6. **Aprende com o jogo.** Quando o jogo mostra a resposta oficial em verde, o OpenRok grava *essa* resposta num banco SQLite local. Nada que a IA diz é salvo sem a confirmação do jogo, e respostas erradas do banco são corrigidas sozinhas (com opção de desfazer).
 
@@ -58,7 +58,7 @@ Troque em **Ajustes**. O padrão segue o idioma do sistema.
 - **Windows** ou **Linux**:
   - No Linux o jogo roda pelo Wine (por exemplo, com o [Rise-of-Kingdoms-Linux-Installer](https://github.com/limeskat/Rise-of-Kingdoms-Linux-Installer)). O OpenRok funciona em X11 e em desktops Wayland via XWayland; foi testado no KDE Plasma.
   - A versão Windows está escrita, mas **ainda não foi testada**.
-- Uma **chave do Google Gemini** é opcional, para perguntas que não estão no banco.
+- Uma **IA** é opcional, para perguntas que não estão no banco: Gemini, Groq e OpenRouter têm plano grátis, e Ollama/LM Studio rodam no seu computador.
 
 Os modelos `eng`/`por` do Tesseract vêm dentro do app.
 
@@ -91,11 +91,18 @@ Fechar a janela mantém o OpenRok na bandeja do sistema; use **Sair** por lá pa
 
 ### IA (opcional)
 
-```bash
-export GEMINI_API_KEY="sua-chave"     # Windows: setx GEMINI_API_KEY "sua-chave"
-```
+Na aba **IA**, escolha o provedor, cole a chave e clique em **Testar**: o OpenRok faz uma pergunta conhecida do banco e mostra se a IA acertou e quanto tempo levou. A chave fica no cofre de senhas do sistema (Gerenciador de Credenciais no Windows, KWallet/Secret Service no Linux), nunca num arquivo.
 
-O modelo pode ser trocado com `OPENROK_MODEL`. Escolher qualquer provedor por dentro do app vem na próxima etapa.
+| Provedor | Grátis | Observação |
+|---|---|---|
+| Google Gemini | sim | chave em [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| Groq | sim | chave em [console.groq.com/keys](https://console.groq.com/keys) |
+| OpenRouter | sim | modelos `:free`; chave em [openrouter.ai/keys](https://openrouter.ai/keys) |
+| Ollama / LM Studio | sim | rodam no seu computador, sem chave |
+| OpenAI, Anthropic, DeepSeek | não | pagos por uso |
+| Personalizado | — | qualquer servidor compatível com a API da OpenAI |
+
+O campo **Modelo** aceita qualquer modelo do provedor; vazio, usa o padrão. A IA só sugere (contorno amarelo) e nunca grava nada no banco. Quem já usava `GEMINI_API_KEY` continua funcionando com o Gemini.
 
 ### Gerando o executável
 
@@ -123,6 +130,7 @@ OpenRok/
 │   ├── ocr.py          # Tesseract (modelos em tessdata/)
 │   ├── conhecimento.py # Banco + o que este computador aprendeu (SQLite, armazem.py)
 │   ├── plataforma.py   # Janela do jogo e captura (X11 no Linux, Win32 no Windows)
+│   ├── ia.py           # Provedores de IA (compatíveis com a OpenAI); a chave fica no cofre (cofre.py)
 │   └── ui/             # Interface Qt: abas, overlay, calibração
 ├── data/               # Bancos de perguntas e respostas (EN, PT)
 ├── tests/              # Testes, com prints e vídeo reais em tests/fixtures/
@@ -139,7 +147,7 @@ OpenRok/
 - **RapidFuzz** para a busca aproximada
 - **SQLite** para o que o OpenRok aprende
 - **python-xlib** (Linux) e **mss** (Windows) para capturar a janela
-- **Google Gemini** como IA opcional
+- **httpx** para a IA opcional (qualquer provedor compatível com a API da OpenAI) e **keyring** para guardar a chave
 - **pytest** + **pytest-qt** para os testes, e **PyInstaller** para empacotar
 
 ---
