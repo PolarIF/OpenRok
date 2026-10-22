@@ -154,3 +154,31 @@ def test_aviso_cofre(aba):
 
     assert widget.aviso_cofre.isVisible()
     assert not aba().aviso_cofre.isVisible()
+
+
+def test_testar_com_banco_pequeno(qtbot, tmp_path):
+    caminho = tmp_path / "pequeno.csv"
+    caminho.write_text("pergunta,resposta\n", encoding="utf-8")
+    cofre = CofreMemoria()
+    cofre.gravar("groq", "k")
+    widget = AbaIA(T, Config(idioma="pt", ia_provedor="groq"), cofre, Conhecimento("pt", caminho, Armazem(":memory:")),
+                   lambda: None)
+    qtbot.addWidget(widget)
+
+    widget.testar.click()
+
+    assert widget.resultado.text() == T["ia_teste_sem_banco"]
+    assert widget.testar.isEnabled()
+
+
+@pytest.mark.parametrize("campo", ["chave", "modelo", "base_url"])
+def test_sair_do_campo_sem_mudar_nao_salva(qtbot, aba, campo):
+    widget = aba()
+    escolher(widget, "personalizado")
+    widget.salvos.clear()
+    emitidos = []
+    widget.ia_mudou.connect(lambda: emitidos.append(True))
+
+    getattr(widget, campo).editingFinished.emit()
+
+    assert emitidos == [] and widget.salvos == []

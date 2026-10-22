@@ -90,3 +90,18 @@ def test_cofre_memoria():
 
     cofre.gravar("groq", "")
     assert cofre.ler("groq") is None
+
+
+def test_le_o_keyring_uma_vez_por_provedor(backend):
+    falso = backend(CofreFalso())
+    falso.dados[("OpenRok", "groq")] = "k"
+    leituras = []
+    original = falso.get_password
+    falso.get_password = lambda servico, usuario: leituras.append(usuario) or original(servico, usuario)
+    cofre = Cofre()
+
+    assert cofre.ler("groq") == "k" and cofre.ler("groq") == "k"
+    cofre.gravar("groq", "nova")
+
+    assert cofre.ler("groq") == "nova"
+    assert leituras == ["groq"]

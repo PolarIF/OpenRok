@@ -8,7 +8,7 @@ from openrok.armazem import Armazem
 from openrok.captura import CapturaDeQuadro
 from openrok.caminhos import pasta_base
 from openrok.conhecimento import Conhecimento
-from openrok.eventos import (Aprendido, JogoEncontrado, JogoPerdido, OutraTela, PerguntaDetectada, Respondida,
+from openrok.eventos import (Aprendido, ErroIA, JogoEncontrado, JogoPerdido, OutraTela, PerguntaDetectada, Respondida,
                              Resultado, SemResposta, Sugestao)
 from openrok.geometria import Ret, areas_para
 from openrok.ocr import MotorOCR
@@ -84,12 +84,12 @@ def pintar_caixa(imagem, letra, cor):
     return imagem
 
 
-def pergunta_inexistente():
+def pergunta_inexistente(texto="Pergunta inexistente de teste qualquer?"):
     imagem = carregar_print("q1_go")
     p = AREAS.pergunta
     desenho = ImageDraw.Draw(imagem)
     desenho.rectangle((p.x, p.y, p.x + p.w, p.y + p.h), fill=(232, 205, 160))
-    desenho.text((p.x + 10, p.y + 30), "Pergunta inexistente de teste qualquer?", fill=(40, 30, 20),
+    desenho.text((p.x + 10, p.y + 30), texto, fill=(40, 30, 20),
                  font=ImageFont.load_default(size=28))
     return imagem
 
@@ -179,6 +179,44 @@ def test_ia_atrasada_descartada(ocr, conhecimento):
     vigia.parar()
 
     assert [e.origem for e in eventos if isinstance(e, Sugestao)] == ["banco"]
+
+
+def test_erro_atrasado_da_ia_descartado(ocr, conhecimento):
+    liberar = threading.Event()
+
+    class IALentaQueFalha:
+        def escolher(self, pergunta, opcoes):
+            liberar.wait(5)
+            raise RuntimeError("IA demorou demais")
+
+    vigia, captura, _, eventos = montar(ocr, conhecimento, ia=IALentaQueFalha())
+
+    rodar(vigia, captura, pergunta_inexistente(), ciclos=2)
+    rodar(vigia, captura, carregar_print("q1_go"), ciclos=2)
+    liberar.set()
+    vigia.parar()
+
+    assert ErroIA not in tipos(eventos)
+
+
+def test_ia_trocada_com_trabalho_na_fila(ocr, conhecimento):
+    liberar = threading.Event()
+
+    class IAPresa:
+        def escolher(self, pergunta, opcoes):
+            liberar.wait(5)
+            return "B"
+
+    vigia, captura, _, eventos = montar(ocr, conhecimento, ia=IAPresa())
+
+    rodar(vigia, captura, pergunta_inexistente(), ciclos=2)
+    rodar(vigia, captura, pergunta_inexistente("Outra pergunta que nao existe no banco?"), ciclos=2)
+    vigia.ia = None  # user switched to a provider with no key while the second call waits in line
+    liberar.set()
+    vigia.parar()
+
+    assert ErroIA not in tipos(eventos)
+    assert [e.letra for e in eventos if isinstance(e, Sugestao)] == ["B"]
 
 
 def test_ia_responde_pergunta_fora_do_banco(ocr, conhecimento):
