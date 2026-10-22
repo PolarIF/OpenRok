@@ -33,7 +33,7 @@ class Preset:
 PRESETS = [
     Preset("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai",
            "gemini-3.5-flash-lite", True, True, "https://aistudio.google.com/apikey"),
-    Preset("groq", "Groq", "https://api.groq.com/openai/v1", "llama-3.1-8b-instant", True, True,
+    Preset("groq", "Groq", "https://api.groq.com/openai/v1", "openai/gpt-oss-20b", True, True,
            "https://console.groq.com/keys"),
     Preset("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "openrouter/free", True, True,
            "https://openrouter.ai/keys"),

@@ -175,7 +175,7 @@ def test_presets():
 
 @pytest.mark.parametrize("campos, chaves, ambiente, esperado", [
     ({"ia_provedor": "groq"}, {}, {}, None),
-    ({"ia_provedor": "groq"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "llama-3.1-8b-instant", "k")),
+    ({"ia_provedor": "groq"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "openai/gpt-oss-20b", "k")),
     ({"ia_provedor": "groq", "ia_modelo": "outro"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "outro", "k")),
     ({"ia_provedor": "ollama"}, {}, {}, ("http://localhost:11434/v1", "llama3.2", None)),
     ({"ia_provedor": "personalizado"}, {}, {}, None),
