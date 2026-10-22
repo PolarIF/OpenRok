@@ -54,38 +54,38 @@ Troque em **Ajustes**. O padrão segue o idioma do sistema.
 
 ## Requisitos
 
-- **Python 3.12**.
-- **Windows** ou **Linux**:
-  - No Linux o jogo roda pelo Wine (por exemplo, com o [Rise-of-Kingdoms-Linux-Installer](https://github.com/limeskat/Rise-of-Kingdoms-Linux-Installer)). O OpenRok funciona em X11 e em desktops Wayland via XWayland; foi testado no KDE Plasma.
-  - A versão Windows está escrita, mas **ainda não foi testada**.
+- **Windows 10/11 (64 bits)** ou **Linux x86-64** com glibc 2.35 ou mais nova (Ubuntu 22.04+, Fedora 36+ e equivalentes).
+  - No Windows o app já é gerado e testado automaticamente, mas **ainda está em teste com o jogo**.
+  - No Linux o jogo roda pelo Wine (por exemplo, com o [Rise-of-Kingdoms-Linux-Installer](https://github.com/limeskat/Rise-of-Kingdoms-Linux-Installer)). O OpenRok funciona em X11 e em desktops Wayland via XWayland; foi testado no KDE Plasma. Veja [Linux](#linux) para um ajuste do Wine.
 - Uma **IA** é opcional, para perguntas que não estão no banco: Gemini, Groq e OpenRouter têm plano grátis, e Ollama/LM Studio rodam no seu computador.
 
-Os modelos `eng`/`por` do Tesseract vêm dentro do app.
+Não é preciso instalar Python nem Tesseract: os dois vêm dentro do app, com os modelos `eng`/`por`.
 
 ---
 
 ## Instalação
 
-```bash
-python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+Baixe a versão mais recente na [página de releases](https://github.com/PolarIF/OpenRok/releases):
 
-No Windows, o `wheels/tesserocr-*.whl` incluído instala o `tesserocr` sem compilar.
+- **Windows:** baixe o `OpenRok-windows.zip`, extraia e abra `OpenRok\OpenRok.exe`. Na primeira vez o Windows avisa que o app não tem assinatura digital: clique em **Mais informações** → **Executar assim mesmo**.
+- **Linux:** baixe o `OpenRok-linux.tar.gz` e rode:
+
+  ```bash
+  tar -xzf OpenRok-linux.tar.gz
+  ./OpenRok/OpenRok
+  ```
+
+O que o OpenRok aprende, as configurações e o log ficam em `%APPDATA%\OpenRok` (Windows) ou `~/.local/share/OpenRok` (Linux). Para atualizar, basta trocar a pasta do app por uma versão nova: os dados continuam.
 
 ---
 
 ## Uso
 
-```bash
-python -m openrok
-```
-
-1. Abra o jogo num exame do Liceu da Sabedoria.
-2. A aba **Início** do OpenRok mostra "Vigiando". A cada pergunta, a opção certa ganha o contorno.
-3. A aba **Banco** lista todas as perguntas com a situação de cada uma (confirmada pelo jogo, corrigida ou original). Por ali dá para buscar, exportar as confirmadas, importar um CSV e desfazer a última correção.
-4. A aba **Ajustes** tem idioma, opacidade do contorno, manter no topo, iniciar com o sistema e **Calibrar áreas**. Só é preciso calibrar se o contorno não bater com as caixas no tamanho da sua janela: arraste um retângulo em volta da pergunta e das quatro opções.
+1. Abra o OpenRok. Ele começa **pausado**: não lê a tela nem chama a IA até você mandar.
+2. Abra o jogo num exame do Liceu da Sabedoria. Sobre o jogo aparece uma bolha com "Pausado"; clique no **▶** dela (ou ligue **Vigiar o jogo** na aba Início). O **⏸** pausa de novo.
+3. A cada pergunta, a opção certa ganha o contorno, e a bolha mostra a resposta e o tempo. A bolha pode ser arrastada para onde atrapalhar menos.
+4. A aba **Banco** lista todas as perguntas com a situação de cada uma (confirmada pelo jogo, corrigida ou original). Por ali dá para buscar, exportar as confirmadas, importar um CSV e desfazer a última correção.
+5. A aba **Ajustes** tem idioma, opacidade do contorno, pílula de resposta sobre o jogo (a bolha), manter no topo, iniciar com o sistema e **Calibrar áreas**. Só é preciso calibrar se o contorno não bater com as caixas no tamanho da sua janela: arraste um retângulo em volta da pergunta e das quatro opções.
 
 Fechar a janela mantém o OpenRok na bandeja do sistema; use **Sair** por lá para encerrar.
 
@@ -96,19 +96,64 @@ Na aba **IA**, escolha o provedor, cole a chave e clique em **Testar**: o OpenRo
 | Provedor | Grátis | Observação |
 |---|---|---|
 | Google Gemini | sim | chave em [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
-| Groq | sim | chave em [console.groq.com/keys](https://console.groq.com/keys) |
+| Groq | sim | chave em [console.groq.com/keys](https://console.groq.com/keys); padrão `openai/gpt-oss-120b` |
 | OpenRouter | sim | modelos `:free`; chave em [openrouter.ai/keys](https://openrouter.ai/keys) |
 | Ollama / LM Studio | sim | rodam no seu computador, sem chave |
 | OpenAI, Anthropic, DeepSeek | não | pagos por uso |
 | Personalizado | — | qualquer servidor compatível com a API da OpenAI |
 
-O campo **Modelo** aceita qualquer modelo do provedor; vazio, usa o padrão. A IA só sugere (contorno amarelo) e nunca grava nada no banco. Quem já usava `GEMINI_API_KEY` continua funcionando com o Gemini.
+O campo **Modelo** aceita qualquer modelo do provedor; vazio, usa o padrão. A IA só sugere (contorno amarelo) e nunca grava nada no banco. Quem já usava `GEMINI_API_KEY` continua funcionando com o Gemini. O log registra tudo o que vai para a IA e volta dela, sem a chave.
+
+---
+
+## Linux
+
+### Liberar o mouse no Wine
+
+Em tela cheia, o Wine prende o mouse dentro da janela do jogo, e aí nenhum clique chega na bolha do OpenRok (ela não liga nem arrasta). Para liberar, desligue o `GrabPointer` no prefixo do jogo e reabra o jogo:
+
+```bash
+WINEPREFIX=~/Games/RiseofKingdoms ~/Games/RiseofKingdoms/wine_bin/bin/wine \
+  reg add 'HKCU\Software\Wine\X11 Driver' /v GrabPointer /t REG_SZ /d N /f
+```
+
+Troque os caminhos se o jogo estiver em outro lugar (`wine` comum serve se o jogo usar o Wine do sistema). Com uma tela só e o jogo em tela cheia, nada muda no jogo; com dois monitores, o cursor passa a poder sair da janela do jogo.
+
+### Captura da tela
+
+Por padrão o OpenRok lê os pixels da própria janela do jogo (X11/XWayland): só o jogo entra na leitura, sem pedir permissão. Com o Wine, essa imagem às vezes fica parada por alguns segundos e o OpenRok deixa de ver o verde de uma pergunta (a sugestão continua aparecendo; só o aprendizado daquela pergunta se perde).
+
+Com `OPENROK_CAPTURA=portal`, ele captura a tela pelo portal do Wayland (o mesmo do compartilhamento de tela). O desktop pede para escolher a tela a cada abertura, e o próprio contorno entra na captura, o que pode fazer a marcação piscar. Fica como opção para diagnóstico.
+
+### Diagnóstico
+
+```bash
+OPENROK_DEBUG=1 ./OpenRok/OpenRok           # log detalhado e quadros salvos em ~/.local/share/OpenRok/quadros
+OPENROK_SEM_BANCO=1 ./OpenRok/OpenRok       # finge banco vazio, sem tocar no banco de verdade
+```
+
+---
+
+## Rodando a partir do código
+
+Requer **Python 3.12**.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python -m openrok
+```
+
+No Windows, o `wheels/tesserocr-*.whl` incluído instala o `tesserocr` sem compilar.
 
 ### Gerando o executável
 
 ```bash
-pyinstaller main.spec
+pyinstaller main.spec          # gera dist/OpenRok/
 ```
+
+O PyInstaller só gera para o sistema em que roda. O workflow [`pacotes.yml`](.github/workflows/pacotes.yml) roda os testes e gera os pacotes no Windows e no Linux a cada push no `main`; uma tag `v*` publica os dois numa pré-release.
 
 ### Testes
 
