@@ -1,0 +1,124 @@
+name: Pacotes
+
+# Tests and builds OpenRok on Windows (OpenRok-windows.zip) and Linux
+# (OpenRok-linux.tar.gz). PyInstaller only builds for the system it runs on,
+# so each package is made on its own runner. A version tag (v2.0.0-alpha.2...)
+# also publishes both as a pre-release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependências
+        run: python -m pip install -r requirements.txt
+
+      - name: Testes
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q -p no:cacheprovider
+
+      - name: Empacota
+        run: pyinstaller --noconfirm main.spec
+
+      # A windowed app that fails to start sits on PyInstaller's error dialog
+      # instead of exiting: only the app's own log proves it got going
+      - name: Abre o executável
+        shell: pwsh
+        run: |
+          $p = Start-Process dist\OpenRok\OpenRok.exe -PassThru
+          Start-Sleep -Seconds 25
+          $log = "$env:APPDATA\OpenRok\openrok.log"
+          if (Test-Path $log) { Get-Content $log }
+          if (-not $p.HasExited) { Stop-Process $p -Force }
+          if (-not ((Test-Path $log) -and (Select-String -Path $log -Pattern "captura:" -Quiet))) {
+            throw "O OpenRok.exe não chegou a iniciar"
+          }
+
+      - name: ZIP
+        shell: pwsh
+        run: Compress-Archive -Path dist\OpenRok -DestinationPath OpenRok-windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRok-windows
+          path: OpenRok-windows.zip
+
+  linux:
+    # The oldest supported runner: the package carries its libraries but
+    # needs a glibc at least this old on the user's machine
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Xvfb + Openbox for the X11 tests and the smoke run (OpenRok finds the game in the
+      # window manager's _NET_CLIENT_LIST); the rest is what Qt's xcb plugin and
+      # QtMultimedia (portal capture) load
+      - name: Bibliotecas do sistema
+        run: >
+          sudo apt-get update && sudo apt-get install -y xvfb openbox libegl1 libgl1 libfontconfig1 libdbus-1-3
+          libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0
+          libxcb-xinerama0 libxcb-randr0 libxcb-render-util0 libxcb-image0 libxcb-xkb1 libpulse0
+
+      - name: Dependências
+        run: python -m pip install -r requirements.txt
+
+      - name: Testes
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: xvfb-run -a sh -c 'openbox & sleep 2; python -m pytest -q -p no:cacheprovider'
+
+      - name: Empacota
+        run: pyinstaller --noconfirm main.spec
+
+      - name: Abre o executável
+        run: |
+          xvfb-run -a timeout 25 dist/OpenRok/OpenRok || true
+          log="$HOME/.local/share/OpenRok/openrok.log"
+          cat "$log" || true
+          grep -q "captura:" "$log" || { echo "O OpenRok não chegou a iniciar"; exit 1; }
+
+      - name: tar
+        run: tar -czf OpenRok-linux.tar.gz -C dist OpenRok
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRok-linux
+          path: OpenRok-linux.tar.gz
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Pré-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create ${{ github.ref_name }} OpenRok-windows.zip OpenRok-linux.tar.gz
+          --repo ${{ github.repository }} --prerelease
+          --title "OpenRok ${{ github.ref_name }}"
+          --notes "Windows: extraia o OpenRok-windows.zip e abra OpenRok\OpenRok.exe (na primeira vez: Mais informações -> Executar assim mesmo).
+          Linux: tar -xzf OpenRok-linux.tar.gz e rode OpenRok/OpenRok. Veja o README para o ajuste do Wine (GrabPointer)."
