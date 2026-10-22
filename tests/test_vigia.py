@@ -235,6 +235,39 @@ def test_pergunta_sem_texto_nao_vai_para_a_ia(ocr, conhecimento):
     assert isinstance(eventos[-1], SemResposta)
 
 
+def test_pausado_nao_le_a_tela(conhecimento):
+    class OCRProibido:
+        def ler_opcoes(self, imagens):
+            raise AssertionError("OCR chamado com o vigia pausado")
+
+        def ler_tudo(self, pergunta, opcoes):
+            raise AssertionError("OCR chamado com o vigia pausado")
+
+    class IAProibida:
+        def escolher(self, pergunta, opcoes):
+            raise AssertionError("IA chamada com o vigia pausado")
+
+    vigia, captura, _, eventos = montar(OCRProibido(), conhecimento, ia=IAProibida())
+    vigia.pausado = True
+
+    rodar(vigia, captura, pergunta_inexistente(), ciclos=3)
+    vigia.parar()
+
+    assert tipos(eventos) == [JogoEncontrado]
+    assert vigia.geometria is not None  # the pill still needs to know where the game is
+
+
+def test_despausar_volta_a_vigiar(ocr, conhecimento):
+    vigia, captura, _, eventos = montar(ocr, conhecimento)
+    vigia.pausado = True
+    rodar(vigia, captura, carregar_print("q1_go"), ciclos=2)
+
+    vigia.pausado = False
+    rodar(vigia, captura, carregar_print("q1_go"), ciclos=2)
+
+    assert tipos(eventos) == [JogoEncontrado, PerguntaDetectada, Sugestao]
+
+
 def test_ia_responde_pergunta_fora_do_banco(ocr, conhecimento):
     class IAFixa:
         def escolher(self, pergunta, opcoes):

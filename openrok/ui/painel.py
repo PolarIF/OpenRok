@@ -1,5 +1,5 @@
-from PySide6.QtCore import QPoint, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPolygonF
 from PySide6.QtWidgets import QApplication, QWidget
 
 from openrok.eventos import ErroIA, JogoEncontrado, JogoPerdido, PerguntaDetectada, SemResposta, Sugestao
@@ -23,11 +23,14 @@ from openrok.ui.tema import AMARELO, BORDA, FUNDO, SECUNDARIO, VERDE
 
 POSICAO_PADRAO = (0.5, 0.02)  # center-top, as fractions of the game window
 ALTURA = 34
+BOTAO = 30  # the play/pause button at the right end
+CLIQUE = 4  # a press that moves less than this (px) is a click, not a drag
 
 
 class Painel(QWidget):
 
     movido = Signal(float, float)
+    vigia_alternado = Signal(bool)  # True: watching, False: paused
 
     def __init__(self, textos, posicao):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
@@ -45,6 +48,7 @@ class Painel(QWidget):
         self._cliente = None
         self._dpr = 1.0
         self._arraste = None
+        self.pausado = False
 
         fonte = QFont()
         fonte.setPixelSize(14)
@@ -60,7 +64,7 @@ class Painel(QWidget):
             return
 
         if isinstance(evento, JogoEncontrado):
-            self._mostrar_texto(self.textos["painel_vigiando"], "", SECUNDARIO)
+            self._mostrar_estado()
         elif isinstance(evento, PerguntaDetectada):
             self._opcoes = evento.opcoes
             self._mostrar_texto("…", "", SECUNDARIO)
@@ -88,6 +92,16 @@ class Painel(QWidget):
             self.show()
             self.raise_()
 
+    def definir_pausado(self, pausado):
+        self.pausado = pausado
+        self._mostrar_estado()
+        if self._cliente is not None and self.isVisible():
+            self._posicionar()
+
+    def _mostrar_estado(self):
+        chave = "painel_pausado" if self.pausado else "painel_vigiando"
+        self._mostrar_texto(self.textos[chave], "", SECUNDARIO)
+
     def _mostrar_texto(self, texto, detalhe, cor):
         self.texto, self.detalhe, self.cor = texto, detalhe, cor
         if self.detalhe:
@@ -104,7 +118,7 @@ class Painel(QWidget):
         cliente = para_logico(self._cliente, self._dpr)
 
         metricas = self.fontMetrics()
-        largura = 46 + metricas.horizontalAdvance(self._principal)
+        largura = 46 + BOTAO + metricas.horizontalAdvance(self._principal)
         if self._secundario:
             largura += 14 + metricas.horizontalAdvance(self._secundario)
         self.resize(largura, ALTURA)
@@ -112,21 +126,32 @@ class Painel(QWidget):
         fx, fy = self.posicao
         self.move(round(cliente.x() + fx * cliente.width() - largura / 2), round(cliente.y() + fy * cliente.height()))
 
+    def area_botao(self):
+        return QRect(self.width() - BOTAO - 4, (ALTURA - 24) // 2, 24, 24)
+
     def mousePressEvent(self, evento):
         if evento.button() == Qt.LeftButton:
-            self._arraste = (evento.globalPosition().toPoint(), self.pos())
+            self._arraste = (evento.globalPosition().toPoint(), self.pos(), evento.position().toPoint())
             self.setCursor(Qt.ClosedHandCursor)
 
     def mouseMoveEvent(self, evento):
         if self._arraste is not None:
-            inicio_mouse, inicio_janela = self._arraste
+            inicio_mouse, inicio_janela, _ = self._arraste
             self.move(inicio_janela + (evento.globalPosition().toPoint() - inicio_mouse))
 
-    def mouseReleaseEvent(self, _):
+    def mouseReleaseEvent(self, evento):
         if self._arraste is None:
             return
+        inicio_mouse, inicio_janela, local = self._arraste
         self._arraste = None
         self.setCursor(Qt.OpenHandCursor)
+
+        if (evento.globalPosition().toPoint() - inicio_mouse).manhattanLength() < CLIQUE:
+            self.move(inicio_janela)
+            if self.area_botao().contains(local):
+                self.definir_pausado(not self.pausado)
+                self.vigia_alternado.emit(not self.pausado)
+            return
 
         if self._cliente is not None:
             cliente = para_logico(self._cliente, self._dpr)
@@ -161,3 +186,24 @@ class Painel(QWidget):
             p.setFont(fonte)
             p.setPen(QColor(SECUNDARIO))
             p.drawText(QRectF(x, 0, self.width(), ALTURA), Qt.AlignLeft | Qt.AlignVCenter, self._secundario)
+
+        self._desenhar_botao(p)
+
+    def _desenhar_botao(self, p):
+        # Paused: a green "play" to start watching. Watching: a gray "pause"
+        botao = QRectF(self.area_botao())
+        cor = QColor(VERDE if self.pausado else SECUNDARIO)
+        p.setPen(Qt.NoPen)
+        fundo = QColor(cor)
+        fundo.setAlpha(45)
+        p.setBrush(fundo)
+        p.drawEllipse(botao)
+
+        p.setBrush(cor)
+        c = botao.center()
+        if self.pausado:
+            p.drawPolygon(QPolygonF([QPointF(c.x() - 3.5, c.y() - 6), QPointF(c.x() - 3.5, c.y() + 6),
+                                     QPointF(c.x() + 6, c.y())]))
+        else:
+            p.drawRect(QRectF(c.x() - 5, c.y() - 5.5, 3.5, 11))
+            p.drawRect(QRectF(c.x() + 1.5, c.y() - 5.5, 3.5, 11))

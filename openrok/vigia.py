@@ -62,6 +62,7 @@ class Vigia:
         self.calibracao = None  # user-calibrated area, see geometria.areas_para
         self._ultimas_cores = None
         self._ultima_tela = None
+        self.pausado = False  # paused: only follows the game window, never reads the screen
         self.pasta_quadros = None  # diagnosis: where to save the frames that flip the question screen
         self._quadros_salvos = 0
         self._esquecer_pergunta()
@@ -126,6 +127,10 @@ class Vigia:
 
         areas = areas_para(cliente, self.calibracao)
         self.geometria = (cliente, areas)
+        if self.pausado:
+            self._reemitir = True
+            return
+
         envoltorio = areas.envoltorio()
         imagem = self.captura.capturar(envoltorio)
 

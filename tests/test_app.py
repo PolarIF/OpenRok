@@ -16,11 +16,13 @@ from tests.fixtures import carregar_print
 def montar(qtbot, tmp_path):
     criadas = []
 
-    def criar(ia_fabrica=lambda idioma: None, sem_banco=False, **config):
+    def criar(ia_fabrica=lambda idioma: None, sem_banco=False, vigiar=True, **config):
         app = Aplicacao(Config(idioma="pt", **config), JanelaFixa(Ret(0, 0, 1920, 1080)),
                         CapturaDeQuadro(carregar_print("q1_go")), Armazem(":memory:"),
                         tmp_path / "config.json", ia_fabrica, sem_banco=sem_banco)
         app.iniciar()
+        if vigiar:
+            app.definir_vigiando(True)
         qtbot.addWidget(app.janela)
         qtbot.addWidget(app.overlay)
         qtbot.addWidget(app.painel)
@@ -88,6 +90,7 @@ def test_modo_sem_banco(qtbot, tmp_path):
                     CapturaDeQuadro(carregar_print("q1_go")), armazem_real,
                     tmp_path / "config.json", lambda idioma: None, sem_banco=True)
     app.iniciar()
+    app.definir_vigiando(True)
     qtbot.addWidget(app.janela)
     qtbot.addWidget(app.overlay)
     qtbot.addWidget(app.painel)
@@ -167,3 +170,32 @@ def test_resposta_atrasada_da_ia_antiga_e_descartada(montar, qtbot):
     qtbot.wait(200)
 
     assert sugestoes == []
+
+
+def test_abre_pausado(montar, qtbot):
+    app = montar(vigiar=False)
+    qtbot.wait(300)
+
+    assert app.vigia.pausado is True and app.painel.pausado is True
+    assert app.janela.inicio.vigiar.isChecked() is False
+    assert app.overlay.marcada is None
+
+
+def test_bolha_e_interruptor_em_sincronia(montar, qtbot):
+    app = montar(vigiar=False)
+
+    app.painel.vigia_alternado.emit(True)
+    assert app.vigia.pausado is False and app.janela.inicio.vigiar.isChecked()
+    qtbot.waitUntil(lambda: app.overlay.marcada == ("A", "banco"), timeout=8000)
+
+    app.janela.inicio.vigiar.setChecked(False)
+    assert app.vigia.pausado is True and app.painel.pausado is True
+    assert app.overlay.marcada is None
+
+
+def test_trocar_idioma_mantem_a_pausa(montar):
+    app = montar(vigiar=False)
+
+    app.trocar_idioma("en")
+
+    assert app.vigia.pausado is True and app.janela.inicio.vigiar.isChecked() is False

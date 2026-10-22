@@ -24,6 +24,7 @@ class JanelaPrincipal(QMainWindow):
 
     idioma_mudou = Signal(str)
     opacidade_mudou = Signal(float)
+    vigiar_mudou = Signal(bool)
     usar_ia_mudou = Signal(bool)
     marcar_no_jogo_mudou = Signal(bool)
     iniciar_mudou = Signal(bool)
@@ -62,6 +63,7 @@ class JanelaPrincipal(QMainWindow):
         self.ia.ia_mudou.connect(self.ia_mudou)
 
         self.inicio.marcar_no_jogo_mudou.connect(lambda v: self._mudar("marcar_no_jogo", v, self.marcar_no_jogo_mudou))
+        self.inicio.vigiar_mudou.connect(self.vigiar_mudou)
         self.inicio.usar_ia_mudou.connect(lambda v: self._mudar("usar_ia", v, self.usar_ia_mudou))
         self.ajustes.idioma_mudou.connect(lambda v: self._mudar("idioma", v, self.idioma_mudou))
         self.ajustes.opacidade_mudou.connect(lambda v: self._mudar("opacidade", v, self.opacidade_mudou))
@@ -115,6 +117,12 @@ class JanelaPrincipal(QMainWindow):
 
     def aplicar(self, evento):
         self.inicio.aplicar(evento)
+
+    def definir_vigiando(self, vigiando):
+        """Reflects a change made elsewhere (the pill) without echoing it back."""
+        self.inicio.vigiar.blockSignals(True)
+        self.inicio.vigiar.setChecked(vigiando)
+        self.inicio.vigiar.blockSignals(False)
 
     def trocar_conhecimento(self, conhecimento):
         """New language: new database and every text redone."""

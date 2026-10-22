@@ -20,6 +20,7 @@ MOTIVO_OPCOES = "resposta do banco não está entre as opções: "
 
 class AbaInicio(QWidget):
 
+    vigiar_mudou = Signal(bool)
     marcar_no_jogo_mudou = Signal(bool)
     usar_ia_mudou = Signal(bool)
 
@@ -64,6 +65,8 @@ class AbaInicio(QWidget):
             interno.addWidget(legenda)
             estatisticas.addWidget(caixa, 0, coluna)
 
+        self.vigiar = Interruptor(textos["vigiar"])  # the app always opens paused
+        self.vigiar.toggled.connect(self.vigiar_mudou)
         self.marcar_no_jogo = Interruptor(textos["marcar_no_jogo"])
         self.marcar_no_jogo.setChecked(config.marcar_no_jogo)
         self.marcar_no_jogo.toggled.connect(self.marcar_no_jogo_mudou)
@@ -75,6 +78,7 @@ class AbaInicio(QWidget):
         layout.addWidget(self.status)
         layout.addWidget(cartao)
         layout.addLayout(estatisticas)
+        layout.addWidget(self.vigiar)
         layout.addWidget(self.marcar_no_jogo)
         layout.addWidget(self.usar_ia)
         layout.addStretch()
