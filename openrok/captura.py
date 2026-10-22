@@ -33,6 +33,55 @@ class CapturaMss:
         return Image.frombytes("RGB", foto.size, foto.bgra, "raw", "BGRX")
 
 
+class CapturaPortal:
+    """Screen capture through the desktop portal (Wayland ScreenCast + PipeWire).
+
+    XGetImage on the game window sometimes keeps returning the same frame for
+    seconds on XWayland, and the game's green/red answer is missed. The portal
+    streams what the compositor shows. It needs a running QApplication, and
+    the desktop asks the user which screen to share on start.
+
+    It captures the screen, our own overlay included: the outline is drawn
+    outside the option boxes, and the watcher reads colors inside them.
+    """
+
+    def __init__(self, iniciar=True):
+        self._trava = threading.Lock()
+        self._quadro = None
+
+        if iniciar:
+            from PySide6.QtGui import QGuiApplication
+            from PySide6.QtMultimedia import QMediaCaptureSession, QScreenCapture, QVideoSink
+
+            self._tela = QScreenCapture()
+            self._sessao = QMediaCaptureSession()
+            self._sink = QVideoSink()
+            self._sessao.setScreenCapture(self._tela)
+            self._sessao.setVideoSink(self._sink)
+            self._sink.videoFrameChanged.connect(self._receber)
+            self._tela.setScreen(QGuiApplication.primaryScreen())
+            self._tela.start()
+
+    def _receber(self, quadro):
+        # Called on the Qt thread for each new frame: only keep it, the watcher converts on demand
+        with self._trava:
+            self._quadro = quadro
+
+    def capturar(self, ret):
+        from PySide6.QtCore import QRect
+        from PySide6.QtGui import QImage
+
+        with self._trava:
+            quadro = self._quadro
+
+        if quadro is None:
+            return Image.new("RGB", (ret.w, ret.h))
+
+        recorte = quadro.toImage().copy(QRect(ret.x, ret.y, ret.w, ret.h)).convertToFormat(QImage.Format_RGB888)
+        return Image.frombuffer("RGB", (ret.w, ret.h), bytes(recorte.constBits()), "raw", "RGB",
+                                recorte.bytesPerLine(), 1).copy()
+
+
 class CapturaDeQuadro:
     """Captures from a full-screen image instead of the screen (replay and tests)."""
 
