@@ -132,3 +132,10 @@ def test_desligar_painel(janela, qtbot):
 
     assert sinal.args == [False]
     assert janela.config.painel_no_jogo is False
+
+
+def test_ordem_das_abas(janela):
+    abas = janela.centralWidget()
+    nomes = [abas.tabText(i) for i in range(abas.count())]
+    t = IDIOMAS["pt"]["textos"]
+    assert nomes == [t["aba_inicio"], t["aba_ia"], t["aba_banco"], t["aba_ajustes"]]
