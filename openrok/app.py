@@ -223,10 +223,11 @@ def main():
         logging.getLogger(nome).setLevel(logging.WARNING)
 
     config = Config.carregar(pasta / "config.json")
-    # On Wayland the game window's own pixels sometimes freeze for seconds
-    # (XWayland + Wine); the portal shows what is really on screen.
-    # OPENROK_CAPTURA=x11 goes back to reading the window, for diagnosis.
-    portal = os.environ.get("XDG_SESSION_TYPE") == "wayland" and os.environ.get("OPENROK_CAPTURA") != "x11"
+    # Reading the game window (X11) is the default: only the game's pixels,
+    # no screen picker on every start. On XWayland + Wine those pixels
+    # sometimes freeze for seconds and a result is missed; OPENROK_CAPTURA=portal
+    # captures the screen instead, but then our own outline is captured too.
+    portal = os.environ.get("OPENROK_CAPTURA") == "portal"
     logging.getLogger("openrok.app").info("captura: %s", "portal" if portal else "janela")
     janela_jogo, captura = plataforma(portal=portal)
 
