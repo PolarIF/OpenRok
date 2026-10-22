@@ -266,9 +266,13 @@ class Vigia:
             try:
                 letra = ia.escolher(pergunta, opcoes)
             except Exception as erro:
+                registro.info("ia falhou em %.0f ms: %s", (time.perf_counter() - inicio) * 1000, erro)
                 if numero == self._numero:
                     self.emitir(ErroIA(str(erro)))
                 return
+
+            registro.info("ia respondeu %s em %.0f ms%s", letra, (time.perf_counter() - inicio) * 1000,
+                          "" if numero == self._numero else " (pergunta já mudou)")
 
             # The question may have changed while the AI was thinking
             if letra in LETRAS and numero == self._numero:
