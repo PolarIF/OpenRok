@@ -171,3 +171,35 @@ def test_presets():
     assert preset("xyz") is PRESETS[0]
     assert all(p.link_chave.startswith("https://") for p in PRESETS if p.exige_chave)
     assert preset("deepseek").base_url == "https://api.deepseek.com"
+
+
+@pytest.mark.parametrize("campos, chaves, ambiente, esperado", [
+    ({"ia_provedor": "groq"}, {}, {}, None),
+    ({"ia_provedor": "groq"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "llama-3.1-8b-instant", "k")),
+    ({"ia_provedor": "groq", "ia_modelo": "outro"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "outro", "k")),
+    ({"ia_provedor": "ollama"}, {}, {}, ("http://localhost:11434/v1", "llama3.2", None)),
+    ({"ia_provedor": "personalizado"}, {}, {}, None),
+    ({"ia_provedor": "personalizado", "ia_base_url": "http://x/v1", "ia_modelo": "m"}, {}, {}, ("http://x/v1", "m", None)),
+    ({"ia_provedor": "gemini"}, {}, {"GEMINI_API_KEY": "g"},
+     ("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3.5-flash-lite", "g")),
+])
+def test_ia_de_config(monkeypatch, campos, chaves, ambiente, esperado):
+    from openrok.cofre import CofreMemoria
+    from openrok.config import Config
+    from openrok.ia import ia_de_config
+
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    for nome, valor in ambiente.items():
+        monkeypatch.setenv(nome, valor)
+    cofre = CofreMemoria()
+    for provedor, chave in chaves.items():
+        cofre.gravar(provedor, chave)
+
+    ia = ia_de_config(Config(**campos), "pt", cofre)
+
+    if esperado is None:
+        assert ia is None
+    else:
+        assert (ia.base_url, ia.modelo, ia.chave) == esperado
+        assert ia.idioma == "pt"

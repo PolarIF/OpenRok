@@ -34,6 +34,9 @@ class Config:
     calibracao: list | None = None  # [fx, fy, fw, fh] of the question+options area, fractions of the game window
     painel_no_jogo: bool = True
     painel_posicao: list | None = None  # [fx, fy]: center-top of the pill, fractions of the game window
+    ia_provedor: str = "gemini"  # id of a preset in openrok.ia.PRESETS
+    ia_modelo: str = ""  # "" = the preset's default model
+    ia_base_url: str = ""  # only for the "personalizado" preset; the key lives in the vault
 
     @classmethod
     def carregar(cls, caminho):
