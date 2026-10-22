@@ -268,6 +268,27 @@ def test_despausar_volta_a_vigiar(ocr, conhecimento):
     assert tipos(eventos) == [JogoEncontrado, PerguntaDetectada, Sugestao]
 
 
+def test_leitura_suja_nao_vai_para_a_ia(ocr, conhecimento):
+    """The reward icon covers the question for ~0.3 s: only the clean read is asked."""
+    perguntas = []
+    respondeu = threading.Event()
+
+    class IAContada:
+        def escolher(self, pergunta, opcoes):
+            perguntas.append(pergunta)
+            respondeu.set()
+            return "B"
+
+    vigia, captura, _, eventos = montar(ocr, conhecimento, ia=IAContada())
+    rodar(vigia, captura, pergunta_inexistente("Pergunta suja de teste (DR) qualquer?"), ciclos=2)
+    rodar(vigia, captura, pergunta_inexistente("Pergunta limpa de teste qualquer?"), ciclos=2)
+    respondeu.wait(3)
+    vigia.parar()
+
+    assert len(perguntas) == 1 and "limpa" in perguntas[0]
+    assert [e.letra for e in eventos if isinstance(e, Sugestao)] == ["B"]
+
+
 def test_ia_responde_pergunta_fora_do_banco(ocr, conhecimento):
     class IAFixa:
         def escolher(self, pergunta, opcoes):
