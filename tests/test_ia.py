@@ -175,7 +175,7 @@ def test_presets():
 
 @pytest.mark.parametrize("campos, chaves, ambiente, esperado", [
     ({"ia_provedor": "groq"}, {}, {}, None),
-    ({"ia_provedor": "groq"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "openai/gpt-oss-20b", "k")),
+    ({"ia_provedor": "groq"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "openai/gpt-oss-120b", "k")),
     ({"ia_provedor": "groq", "ia_modelo": "outro"}, {"groq": "k"}, {}, ("https://api.groq.com/openai/v1", "outro", "k")),
     ({"ia_provedor": "ollama"}, {}, {}, ("http://localhost:11434/v1", "llama3.2", None)),
     ({"ia_provedor": "personalizado"}, {}, {}, None),
@@ -255,3 +255,33 @@ def test_log_do_erro_tem_status_e_corpo(caplog):
         cliente(status=500, corpo=b'{"error": "servidor caiu"}').escolher("Quem matou Heitor?", OPCOES)
 
     assert "500" in caplog.text and "servidor caiu" in caplog.text
+
+
+def test_groq_pede_raciocinio_curto():
+    ia = cliente("groq")
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    dados = json.loads(ia.recebidas[0].content)
+    assert dados["model"] == "openai/gpt-oss-120b"
+    assert dados["reasoning_effort"] == "low" and dados["temperature"] == 0
+
+
+def test_log_da_resposta_vazia_tem_o_motivo(caplog):
+    caplog.set_level("INFO", logger="openrok.ia")
+    corpo = {"choices": [{"message": {"content": "", "reasoning": "pensando..."}, "finish_reason": "length"}]}
+
+    assert cliente(resposta=corpo).escolher("Quem matou Heitor?", OPCOES) is None
+
+    assert "finish_reason=length" in caplog.text
+
+
+@pytest.mark.parametrize("id_preset, modelo", [("groq", "allam-2-7b"), ("openai", "outro-modelo")])
+def test_campos_do_preset_so_com_o_modelo_padrao(id_preset, modelo):
+    ia = cliente(id_preset, modelo=modelo)
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    dados = json.loads(ia.recebidas[0].content)
+    assert dados["model"] == modelo
+    assert "reasoning_effort" not in dados and dados["temperature"] == 0
