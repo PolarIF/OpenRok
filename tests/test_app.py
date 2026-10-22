@@ -59,10 +59,11 @@ def test_trocar_idioma_sem_eventos_velhos(montar, qtbot):
     assert app.vigia is not vigia_antigo
     assert not vigia_antigo._thread.is_alive()
 
-    texto_antes = app.janela.inicio.resposta.text()
+    # The new watcher may report its own events meanwhile: only the old "D" must not arrive
     ponte_antiga.emitir(Sugestao("D", "banco", 1))
     qtbot.wait(100)
-    assert app.janela.inicio.resposta.text() == texto_antes
+    assert not app.janela.inicio.resposta.text().startswith("D")
+    assert app.overlay.marcada is None or app.overlay.marcada[0] != "D"
     assert app.janela.ajustes.idioma.currentData() == "en"
 
 
