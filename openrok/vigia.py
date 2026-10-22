@@ -62,6 +62,8 @@ class Vigia:
         self.calibracao = None  # user-calibrated area, see geometria.areas_para
         self._ultimas_cores = None
         self._ultima_tela = None
+        self.pasta_quadros = None  # diagnosis: where to save the frames that flip the question screen
+        self._quadros_salvos = 0
         self._esquecer_pergunta()
         self._numero = 0  # identifies the current question for late AI replies
 
@@ -81,6 +83,19 @@ class Vigia:
     def _emitir_da_pergunta(self, evento):
         self._eventos_pergunta.append(evento)
         self.emitir(evento)
+
+    def _salvar_quadro(self, imagem, rotulo):
+        if self.pasta_quadros is None or self._quadros_salvos >= 300:
+            return
+        try:
+            self.pasta_quadros.mkdir(parents=True, exist_ok=True)
+            agora = time.time()
+            nome = f"{time.strftime('%H%M%S', time.localtime(agora))}_{int(agora % 1 * 1000):03d}_{rotulo}.png"
+            imagem.save(self.pasta_quadros / nome)
+            self._quadros_salvos += 1
+            registro.debug("quadro salvo: %s", nome)
+        except Exception:
+            registro.exception("falha ao salvar quadro de diagnóstico")
 
     def _mudar(self, estado, evento=None):
         if self.estado != estado:
@@ -118,6 +133,7 @@ class Vigia:
         if tela != self._ultima_tela:
             registro.debug("tela de perguntas: %s", "sim" if tela else "não")
             self._ultima_tela = tela
+            self._salvar_quadro(imagem, "sim" if tela else "nao")
 
         if not tela:
             self._reemitir = True
