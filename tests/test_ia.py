@@ -203,3 +203,33 @@ def test_ia_de_config(monkeypatch, campos, chaves, ambiente, esperado):
     else:
         assert (ia.base_url, ia.modelo, ia.chave) == esperado
         assert ia.idioma == "pt"
+
+
+def test_chave_com_caractere_invisivel_e_limpa():
+    ia = cliente(chave="  abc\u200b\n")
+
+    ia.escolher("Quem matou Heitor?", OPCOES)
+
+    assert ia.recebidas[0].headers["Authorization"] == "Bearer abc"
+
+
+def test_chave_com_acento_nao_derruba():
+    from openrok.cofre import CofreMemoria
+    from openrok.config import Config
+    from openrok.ia import ia_de_config
+
+    cofre = CofreMemoria()
+    cofre.gravar("groq", "chaveç")
+
+    ia = ia_de_config(Config(ia_provedor="groq"), "pt", cofre)
+
+    with pytest.raises(FalhaIA) as erro:
+        ia.escolher("Quem matou Heitor?", OPCOES)
+    assert str(erro.value) == T["ia_chave_invalida"]
+
+
+def test_pergunta_de_teste_com_banco_pequeno():
+    with pytest.raises(ValueError):
+        pergunta_de_teste([], [], random.Random(1))
+    with pytest.raises(ValueError):
+        pergunta_de_teste(["a", "b", "c"], ["x", "y", "z"], random.Random(1))

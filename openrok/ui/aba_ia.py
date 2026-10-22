@@ -95,12 +95,18 @@ class AbaIA(QWidget):
         self._mostrar_provedor()
         self._avisar()
 
+    # editingFinished also fires when the field just loses focus: save only real changes
     def _gravar_chave(self):
-        self.cofre.gravar(self._preset().id, self.chave.text().strip())
+        provedor, chave = self._preset().id, self.chave.text().strip()
+        if chave == (self.cofre.ler(provedor) or ""):
+            return
+        self.cofre.gravar(provedor, chave)
         self.aviso_cofre.setVisible(not self.cofre.disponivel)
         self._avisar()
 
     def _gravar(self, campo, valor):
+        if getattr(self.config, campo) == valor:
+            return
         setattr(self.config, campo, valor)
         self._avisar()
 
@@ -115,7 +121,11 @@ class AbaIA(QWidget):
             return
 
         banco = self.conhecimento.banco
-        pergunta, opcoes, correta = pergunta_de_teste(banco.perguntas, banco.respostas, random.Random())
+        try:
+            pergunta, opcoes, correta = pergunta_de_teste(banco.perguntas, banco.respostas, random.Random())
+        except ValueError:
+            self.resultado.setText(self.textos["ia_teste_sem_banco"])
+            return
         self.testar.setEnabled(False)
         self.resultado.setText(self.textos["ia_testando"])
 

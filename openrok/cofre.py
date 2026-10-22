@@ -35,17 +35,20 @@ class Cofre:
     def __init__(self):
         self.disponivel = True
         self._memoria = CofreMemoria()
+        self._lidos = set()  # each provider is read from the vault once: it may block to unlock
 
     def ler(self, provedor):
-        if self.disponivel:
+        if self.disponivel and provedor not in self._lidos:
             try:
-                return keyring.get_password(SERVICO, provedor)
+                self._memoria.gravar(provedor, keyring.get_password(SERVICO, provedor))
+                self._lidos.add(provedor)
             except Exception:
                 self.disponivel = False
         return self._memoria.ler(provedor)
 
     def gravar(self, provedor, chave):
         self._memoria.gravar(provedor, chave)
+        self._lidos.add(provedor)
         if not self.disponivel:
             return
 

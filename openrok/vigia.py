@@ -260,12 +260,14 @@ class Vigia:
 
     def _perguntar_ia(self, pergunta, opcoes, inicio):
         numero = self._numero
+        ia = self.ia  # the provider may be switched while this call waits in line
 
         def trabalho():
             try:
-                letra = self.ia.escolher(pergunta, opcoes)
+                letra = ia.escolher(pergunta, opcoes)
             except Exception as erro:
-                self.emitir(ErroIA(str(erro)))
+                if numero == self._numero:
+                    self.emitir(ErroIA(str(erro)))
                 return
 
             # The question may have changed while the AI was thinking

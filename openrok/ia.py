@@ -125,16 +125,22 @@ class ClienteIA:
         self.preset = preset
         self.base_url = base_url.rstrip("/")
         self.modelo = modelo
-        self.chave = chave
-        cabecalhos = {"Authorization": f"Bearer {chave}"} if chave else {}
-        self._http = httpx.Client(transport=transporte, timeout=timeout, headers=cabecalhos)
+        # A pasted key may carry spaces or invisible characters (zero-width space)
+        self.chave = "".join(c for c in chave if c.isprintable() and not c.isspace()) if chave else chave
+        self._http = httpx.Client(transport=transporte, timeout=timeout)
 
     def _texto(self, chave, **valores):
         return IDIOMAS[self.idioma]["textos"][chave].format(**valores)
 
     def _pedir(self, metodo, caminho, **kwargs):
+        cabecalhos = {}
+        if self.chave:
+            if not self.chave.isascii():  # HTTP headers are ASCII: no real key has "ç"
+                raise FalhaIA(self._texto("ia_chave_invalida"))
+            cabecalhos["Authorization"] = f"Bearer {self.chave}"
+
         try:
-            resposta = self._http.request(metodo, f"{self.base_url}{caminho}", **kwargs)
+            resposta = self._http.request(metodo, f"{self.base_url}{caminho}", headers=cabecalhos, **kwargs)
         except httpx.TimeoutException:
             raise FalhaIA(self._texto("ia_demorou")) from None
         except httpx.HTTPError:
@@ -197,7 +203,10 @@ class ClienteIA:
 
 
 def pergunta_de_teste(perguntas, respostas, aleatorio):
-    """A known question with its answer among three answers of other questions."""
+    """A known question with its answer among three answers of other questions.
+
+    ValueError when the database has fewer than four different answers.
+    """
     indice = aleatorio.randrange(len(perguntas))
     certa = respostas[indice]
     outras = list(dict.fromkeys(r for i, r in enumerate(respostas) if i != indice and r != certa))
